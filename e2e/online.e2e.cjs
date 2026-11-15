@@ -417,7 +417,7 @@ async function captureThemes() {
   await A.screenshot({ path: OUT + '/10-waiting.png' });
   // lobby shows it
   await B.goto(BASE + '/online');
-  await B.waitForSelector('.room-card');
+  await B.waitForSelector('.room-card2');
   await B.screenshot({ path: OUT + '/11-lobby.png' });
   await B.goto(url);
   await B.locator('input[type=password]').fill('wrong');

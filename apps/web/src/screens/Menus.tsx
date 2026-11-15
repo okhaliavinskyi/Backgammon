@@ -11,9 +11,9 @@ import './menus.css';
 
 export type Nav = (path: string) => void;
 
-function Seg<T extends string | number | boolean>({ value, options, onChange }: { value: T; options: { v: T; label: string; sub?: string }[]; onChange: (v: T) => void }) {
+function Seg<T extends string | number | boolean>({ value, options, onChange, className = '' }: { className?: string; value: T; options: { v: T; label: string; sub?: string }[]; onChange: (v: T) => void }) {
   return (
-    <div className="seg" role="radiogroup">
+    <div className={'seg ' + className} role="radiogroup">
       {options.map((o) => (
         <button key={String(o.v)} role="radio" aria-checked={o.v === value} className={o.v === value ? 'on' : ''} onClick={() => onChange(o.v)}>
           {o.label}
@@ -152,61 +152,47 @@ export function Online({ nav }: { nav: Nav }) {
     const id = setInterval(load, 5000);
     return () => clearInterval(id);
   }, []);
-  const timerLabel = (s: RoomSettings) => {
-    const parts: string[] = [];
-    if (s.moveTimer) parts.push(`${s.moveTimer}${T.sec}`);
-    if (s.bank) parts.push(`${s.bank / 60}${T.min}`);
-    return parts.join(' + ') || '∞';
-  };
+  const [filter, setFilter] = useState<'all' | Variant>('all');
+const shown = rooms?.filter((r) => filter === 'all' || r.settings.variant === filter);
+const chips = (s: RoomSettings) => [
+  s.variant === 'long' ? T.long : T.short,
+  `${T.matchLength} ${s.matchLength}`,
+  s.moveTimer || s.bank ? [s.moveTimer && `${s.moveTimer} ${T.sec}`, s.bank && `${s.bank / 60} ${T.min}`].filter(Boolean).join(' + ') : '∞',
+  ...(s.cube ? [T.cube] : []),
+];
+
   return (
-    <div className="screen form">
-      <PageHead title={T.playOnline} onBack={() => nav('/')} />
-      <div className="card">
-        <NameField />
-      </div>
-      <button className="btn primary big" onClick={() => nav('/create')}>
-        ＋ {T.createRoom}
-      </button>
-      <form
-        className="row join-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const c = code.trim().toUpperCase();
-          if (/^[A-Z0-9]{6}$/.test(c)) nav('/r/' + c);
-        }}
-      >
-        <input className="grow code-input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={6} placeholder={T.code} aria-label={T.code} />
-        <button className="btn">{T.join}</button>
-      </form>
-      <div className="lobby-head">
-        <h3>{T.lobby}</h3>
-        <button className="link" onClick={load}>
-          ↻ {T.refresh}
-        </button>
-      </div>
-      <div className="lobby">
-        {rooms === null && <p className="muted">…</p>}
-        {rooms?.length === 0 && (
-          <div className="empty">
-            <span aria-hidden>🎲</span>
-            <p className="muted">{T.noRooms}</p>
-          </div>
-        )}
-        {rooms?.map((r) => (
-          <button key={r.id} className="room-card" onClick={() => nav('/r/' + r.id)}>
-            <div>
-              <b>{r.host}</b> {r.hasPassword && <span title={T.locked}>🔒</span>}
-              <div className="muted">
-                {r.settings.variant === 'long' ? T.long : T.short} · {T.matchLength} {r.settings.matchLength} · ⏱ {timerLabel(r.settings)}
-                {r.settings.cube ? ' · ×2' : ''}
-              </div>
-            </div>
-            <span className="code">{r.id}</span>
-            <span className="chev" aria-hidden>›</span>
-          </button>
-        ))}
-      </div>
-    </div>
+<div className="screen form online2">
+  <PageHead title={T.playOnline} onBack={() => nav('/')} />
+  <NameChip />
+  <button className="btn primary big" onClick={() => nav('/create')}><Icon name="plus" /> {T.createRoom}</button>
+  <div className="lobby-tools">
+    <Seg className="lobby-filter" value={filter} onChange={setFilter}
+      options={[{ v: 'all', label: T.filterAll }, { v: 'long', label: T.filterLong }, { v: 'short', label: T.filterShort }]} />
+    <button className="icon-btn t44" aria-label={T.refresh} onClick={load}><Icon name="refresh" /></button>
+  </div>
+  <div className="eyebrow">{T.lobby} · {shown?.length ?? 0}</div>
+  {rooms === null && <p className="muted">…</p>}
+  {shown?.length === 0 && <p className="muted empty-text">{T.noRooms}</p>}
+  {shown?.map((r) => (
+    <button key={r.id} className="room-card2" onClick={() => nav('/r/' + r.id)}>
+      <span className="avatar" aria-hidden>{r.host.charAt(0).toUpperCase()}</span>
+      <span className="room-main">
+        <span className="room-host"><b>{r.host}</b>{r.hasPassword && <span className="lock-chip"><Icon name="lock" size={12} /> {T.byPassword}</span>}</span>
+        <span className="chips">{chips(r.settings).map((c) => <span key={c} className="chip">{c}</span>)}</span>
+      </span>
+      <span className="room-enter">{T.enter}</span>
+    </button>
+  ))}
+  <div className="lobby-bar">
+    <form onSubmit={(e) => { e.preventDefault(); const c = code.trim().toUpperCase(); if (/^[A-Z0-9]{6}$/.test(c)) nav('/r/' + c); }}>
+      <label htmlFor="room-code" className="muted">{T.haveCode}</label>
+      <input id="room-code" className="grow code-input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={6} placeholder="ABC123" />
+      <button className="btn">{T.enter}</button>
+    </form>
+  </div>
+</div>
+
   );
 }
 
@@ -308,6 +294,7 @@ export function SettingsScreen({ nav }: { nav: Nav }) {
       <label className="field">
         <span>{T.animSpeed}</span>
         <Seg<Speed>
+          className="seg-2col"
           value={st.speed}
           onChange={(speed) => st.set({ speed })}
           options={[
