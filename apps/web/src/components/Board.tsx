@@ -20,7 +20,7 @@ import {
   locCounts,
   slotX,
 } from './geometry';
-import { BoardTheme, THEMES, HINT_FILL_W, HINT_EDGE_W } from './themes';
+import { BoardTheme, THEMES, HINT_FILL_W, HINT_EDGE_W, SELECT_GREEN, SELECT_DARK } from './themes';
 import type { Theme } from '../lib/settings';
 
 export interface BoardProps {
@@ -283,7 +283,7 @@ export function BoardView(p: BoardProps) {
         const x = isGhost ? ghost!.x : c.x;
         const y = isGhost ? ghost!.y : c.y;
         const movable = p.hints && c.top && c.color === p.mover && p.movable.has(c.loc);
-        const selectedInk = c.color === 0 || p.theme === 'minimal' ? th.hint.edge : th.hint.fill;
+        const selectedInk = c.color === 0 ? SELECT_DARK : SELECT_GREEN;
         const selected = p.hints && c.top && c.color === p.mover && p.selected === c.loc;
         return (
           <g
@@ -305,10 +305,10 @@ export function BoardView(p: BoardProps) {
                 <circle r={R - 15} fill="none" stroke={col.ring} strokeWidth="1.2" opacity="0.55" /></>}
                 {(movable || selected) && (
                   <g data-hint={selected ? 'selected' : 'movable'}>
-                    <circle r={R - 3} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 6 : 0)} />
-                    <circle r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 6 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={selected ? SELECT_DARK : th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 6 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={selected ? SELECT_GREEN : th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 6 : 0)} />
                     {selected && <>
-                      <circle data-selected-mark r={R - 11} fill={col.base} stroke={th.hint.fill} strokeWidth="1.5" />
+                      <circle data-selected-mark r={R - 11} fill={col.base} stroke={SELECT_GREEN} strokeWidth="2" />
                       {c.count <= 5 && <path d="M -8 0 L -2 6 L 9 -7" fill="none" stroke={selectedInk} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
                     </>}
                   </g>

@@ -174,11 +174,6 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   const dimSet = useRef(new Set<Loc>());
   if (!busy) dimSet.current = movable;
 
-  // Auto-select when only one checker can move.
-  useEffect(() => {
-    if (movable.size === 1 && !selected) setSelected([...movable][0]);
-  }, [movable, selected]);
-
   const locToPos = useCallback(
     (loc: Loc, color: Color): number => (loc === 'bar' ? BAR : loc === 'off' ? OFF : posOfSlot(Number(loc.slice(1)), color, viewer, variant)),
     [viewer, variant],
@@ -296,10 +291,6 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     if (rollActor && !mayDouble && !st.autoRoll) return doRoll();
     if (!canInteract) return;
     if (selected && dests.has(loc)) return playChain(dests.get(loc)!);
-    if (movable.has(loc) && pending && mover !== null) {
-      const ds = destinationsFrom(pending.ts, locToPos(loc, mover), memoRef.current);
-      if (ds.length === 1) return playChain(ds[0].steps);
-    }
     if (movable.has(loc)) return setSelected(selected === loc ? null : loc);
     setSelected(null);
   };

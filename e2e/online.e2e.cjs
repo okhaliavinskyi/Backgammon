@@ -19,7 +19,7 @@ async function mk(b, name, opts = { viewport: { width: 1100, height: 900 } }) {
 async function playTurn(p) {
   const roll = p.locator('button:has-text("Бросить")');
   if (await roll.count()) { await roll.click(); await p.waitForTimeout(700); }
-  for (let k = 0; k < 6; k++) {
+  for (let k = 0; k < 14; k++) {
     const t = p.locator('[data-hint="target"] circle').first();
     if (await t.count()) {
       const bb = await t.boundingBox(); await p.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await p.waitForTimeout(350); continue;
