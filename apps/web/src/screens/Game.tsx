@@ -402,6 +402,33 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     const p = g.players[c];
     const clk = clockFor(c);
     const active = act === c;
+    if (compact) {
+      const running = act === c && clocks?.turnStartedAt != null;
+      const elapsed = running ? Math.max(0, serverNow - clocks!.turnStartedAt!) : 0;
+      const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
+      const moveLeft = clocks?.moveTimerMs ? Math.max(0, clocks.moveTimerMs - elapsed) : null;
+      const pieceLabel = c === 0 ? T.white : st.theme === 'minimal' ? T.red : T.black;
+      return <div className={'pbar player-card' + (active ? ' active' : '')}>
+        <div className="player-piece">
+          <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
+          <span>{pieceLabel}</span>
+        </div>
+        <div className="player-card-body">
+          <div className="pname" title={p?.name}>{p?.name ?? '—'}</div>
+          {p && !p.connected && <span className="tag warn">{T.offline}</span>}
+          <div className="player-card-state">
+            <i className={'turn-light' + (active ? ' active' : '')} title={active ? T.hotseatTurn : undefined} />
+            <span className="player-score" title={T.score}>{m.score[c]}</span>
+            {m.cube.owner === c && m.settings.cube && <Cube value={m.cube.value} />}
+          </div>
+          <div className="pmeta" data-pips={c === viewer ? 'me' : 'opp'}>{pipCount(board, c)} {T.pips} · {board.off[c]}/15</div>
+        </div>
+        <div className="player-timers">
+          <span className="bank-time" title={T.bank}>{bankLeft === null ? '—' : fmt(bankLeft)}</span>
+          <span className={'move-time' + (clk?.low ? ' low' : '')} title={T.moveTimer}>{moveLeft === null ? '—' : fmt(moveLeft)}</span>
+        </div>
+      </div>;
+    }
     return (
       <div className={'pbar' + (active ? ' active' : '') + (bottom ? ' bottom' : '')}>
         <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
@@ -615,6 +642,13 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
       <div className={compact ? 'mobile-hud' : 'desktop-hud'}>
       {compact && playerBar(viewer, true)}
       <div className="controls">
+        {compact && <div className="auto-move" role="group" aria-label={T.autoConfirm}>
+          <span title={T.autoConfirm}>{T.autoMove}</span>
+          <div className="auto-choices">
+            <button type="button" aria-pressed={st.autoConfirm} onClick={() => st.set({ autoConfirm: true })}>{T.yes}</button>
+            <button type="button" aria-pressed={!st.autoConfirm} onClick={() => st.set({ autoConfirm: false })}>{T.no}</button>
+          </div>
+        </div>}
         <span className="status">{statusText}</span>
         {pending && !sent && pending.chains.length > 0 && (
           <>

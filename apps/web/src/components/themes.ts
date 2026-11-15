@@ -14,6 +14,7 @@ export interface BoardTheme {
   bar: string;
   tray: string;
   inlay: string;
+  number: string;
   white: { base: string; light: string; dark: string; ring: string };
   black: { base: string; light: string; dark: string; ring: string };
   hint: { fill: string; edge: string };
@@ -34,6 +35,7 @@ export const THEMES: Record<Theme, BoardTheme> = {
     bar: '#4a2412',
     tray: '#3b1c0c',
     inlay: '#c99a4b',
+    number: '#fff0ce',
     white: { base: '#f4ead2', light: '#fffaf0', dark: '#c9b78f', ring: '#b49a6a' },
     black: { base: '#2a1b14', light: '#5a4032', dark: '#120a06', ring: '#7a5a3a' },
     hint: { fill: '#d8bc83', edge: '#302219' },
@@ -52,6 +54,7 @@ export const THEMES: Record<Theme, BoardTheme> = {
     bar: '#181d28',
     tray: '#171c27',
     inlay: '#3b465c',
+    number: '#e2e7ef',
     white: { base: '#eef1f6', light: '#ffffff', dark: '#c3cad6', ring: '#a9b2c2' },
     black: { base: '#ff6b5a', light: '#ff9585', dark: '#d1453a', ring: '#b8382f' },
     hint: { fill: '#a7c9c0', edge: '#14221f' },
@@ -70,6 +73,7 @@ export const THEMES: Record<Theme, BoardTheme> = {
     bar: '#6d521d',
     tray: '#4d3a12',
     inlay: '#e2c26a',
+    number: '#fff9e8',
     white: { base: '#efe8da', light: '#ffffff', dark: '#c8bba1', ring: '#d4af37' },
     black: { base: '#1c1f22', light: '#4a5056', dark: '#050607', ring: '#d4af37' },
     hint: { fill: '#d1c493', edge: '#10261d' },

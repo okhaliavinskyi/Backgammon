@@ -92,8 +92,8 @@ function pointPath(slot: number, g: Geometry): string {
   const { TOP, BOTTOM, POINT_LEN } = g;
   const cx = slotX(slot);
   const half = PW / 2 - 2;
-  if (isTop(slot)) return `M${cx - half},${TOP} L${cx + half},${TOP} L${cx},${TOP + POINT_LEN} Z`;
-  return `M${cx - half},${BOTTOM} L${cx + half},${BOTTOM} L${cx},${BOTTOM - POINT_LEN} Z`;
+  if (isTop(slot)) return `M${cx - half},${TOP + R} A${half},${R} 0 0 1 ${cx + half},${TOP + R} L${cx},${TOP + POINT_LEN} Z`;
+  return `M${cx + half},${BOTTOM - R} A${half},${R} 0 0 1 ${cx - half},${BOTTOM - R} L${cx},${BOTTOM - POINT_LEN} Z`;
 }
 
 const StaticBoard = memo(function StaticBoard({ th, id, g, showTray }: { th: BoardTheme; id: string; g: Geometry; showTray: boolean }) {
@@ -118,13 +118,14 @@ const StaticBoard = memo(function StaticBoard({ th, id, g, showTray }: { th: Boa
       {Array.from({ length: 24 }, (_, s) => (
         <path key={s} d={pointPath(s, g)} fill={s % 2 === 0 ? th.pointA : th.pointB} stroke={th.pointStroke} strokeWidth="1" />
       ))}
+      {Array.from({ length: 24 }, (_, slot) => <circle key={'seat-' + slot} data-point-seat={slot} cx={slotX(slot)} cy={isTop(slot) ? TOP + R : BOTTOM - R} r={R + 1} fill="none" stroke={th.inlay} strokeOpacity="0.5" strokeWidth="1.5" />)}
       <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill={th.bar} />
       {th.fieldTexture === 'wood' && <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill="#000" filter={`url(#${id}-grain)`} opacity="0.5" />}
       <line x1={BAR_X + BAR_W / 2} y1={TOP + 8} x2={BAR_X + BAR_W / 2} y2={BOTTOM - 8} stroke={th.inlay} strokeOpacity="0.4" strokeDasharray="2 10" />
       {showTray && <rect x={TRAY_X} y={TOP} width={TRAY_W} height={BOTTOM - TOP} rx="8" fill={th.tray} />}
       {showTray && <line x1={TRAY_X + 8} y1={MID_Y} x2={TRAY_X + TRAY_W - 8} y2={MID_Y} stroke={th.inlay} strokeOpacity="0.45" />}
       {Array.from({ length: 24 }, (_, s) => (
-        <text key={s} x={slotX(s)} y={isTop(s) ? TOP - 7 : BOTTOM + 17} fontSize="12" textAnchor="middle" fill={th.inlay} opacity="0.75" style={{ userSelect: 'none' }}>
+        <text key={s} x={slotX(s)} data-point-number={s + 1} y={isTop(s) ? TOP - 5 : BOTTOM + 19} fontSize="22" fontWeight="600" textAnchor="middle" fill={th.number} style={{ userSelect: 'none' }}>
           {s + 1}
         </text>
       ))}
