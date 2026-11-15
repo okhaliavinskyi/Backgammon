@@ -32,10 +32,12 @@ export function slotX(slot: number): number {
 
 export const isTop = (slot: number) => slot >= 12;
 
+export const STACK_H = 5 * 2 * R;
+
 /** Spacing between stacked checkers on a point. */
 export function stackSpacing(n: number): number {
   if (n <= 5) return R * 2;
-  return (POINT_LEN - R * 2) / (n - 1);
+  return (STACK_H - R * 2) / (n - 1);
 }
 
 export function checkerPos(slot: number, k: number, n: number): { x: number; y: number } {
@@ -53,9 +55,10 @@ export function offPos(mine: boolean, k: number): { x: number; y: number } {
   return { x: TRAY_CX, y: mine ? BOTTOM - 10 - SLAB_H / 2 - k * (SLAB_H + 1) : TOP + 10 + SLAB_H / 2 + k * (SLAB_H + 1) };
 }
 
-export function barPos(mine: boolean, k: number): { x: number; y: number } {
+export function barPos(mine: boolean, k: number, n: number): { x: number; y: number } {
   const x = BAR_X + BAR_W / 2;
-  return { x, y: mine ? MID_Y + 48 + k * 26 : MID_Y - 48 - k * 26 };
+  const spacing = n <= 5 ? 26 : Math.min(26, (BOTTOM - MID_Y - 48 - R - 4) / (n - 1));
+  return { x, y: mine ? MID_Y + 48 + k * spacing : MID_Y - 48 - k * spacing };
 }
 
 /** Path position of `color` → display slot for `viewer`. */

@@ -19,13 +19,13 @@ async function playTurn(p) {
   const roll = p.locator('button:has-text("Бросить")');
   if (await roll.count()) { await roll.click(); await p.waitForTimeout(700); }
   for (let k = 0; k < 6; k++) {
-    const t = p.locator('circle.pulse[stroke-dasharray]').first();
+    const t = p.locator('[data-hint="target"] circle').first();
     if (await t.count()) {
       const bb = await t.boundingBox(); await p.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await p.waitForTimeout(350); continue;
     }
-    const tray = p.locator('rect.pulse').first();
+    const tray = p.locator('[data-hint="target-off"] rect').first();
     if (await tray.count()) { const bb = await tray.boundingBox(); await p.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await p.waitForTimeout(350); continue; }
-    const ring = p.locator('g.ck circle.pulse').first();
+    const ring = p.locator('[data-hint="movable"]').first();
     if (await ring.count()) { const bb = await ring.boundingBox(); await p.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await p.waitForTimeout(200); continue; }
     break;
   }
@@ -41,9 +41,9 @@ async function finishPending(p) {
   for (let i = 0; i < 30; i++) {
     if (await p.locator('button.undo-send').count()) return before;
     before = await p.locator('[data-pips="me"]').textContent();
-    const target = p.locator('circle.pulse[stroke-dasharray], [data-hint="target"] circle').first();
-    const off = p.locator('rect.pulse, [data-hint="target-off"] rect').first();
-    const ring = p.locator('g.ck circle.pulse, [data-hint="movable"]').first();
+    const target = p.locator('[data-hint="target"] circle').first();
+    const off = p.locator('[data-hint="target-off"] rect').first();
+    const ring = p.locator('[data-hint="movable"]').first();
     if (await target.count()) await tap(p, target);
     else if (await off.count()) await tap(p, off);
     else if (await ring.count()) await tap(p, ring);

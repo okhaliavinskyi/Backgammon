@@ -26,7 +26,7 @@ import {
   offPos,
   slotX,
 } from './geometry';
-import { BoardTheme, THEMES } from './themes';
+import { BoardTheme, THEMES, HINT_FILL_W, HINT_EDGE_W } from './themes';
 import type { Theme } from '../lib/settings';
 
 export interface BoardProps {
@@ -80,6 +80,9 @@ const Defs = ({ th, id }: { th: BoardTheme; id: string }) => (
     </filter>
     <filter id={`${id}-shadow`} x="-30%" y="-30%" width="160%" height="160%">
       <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000" floodOpacity="0.45" />
+    </filter>
+    <filter id={`${id}-lift`} x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#000" floodOpacity="0.45" />
     </filter>
     <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="4" result="b" />
@@ -181,7 +184,7 @@ export function BoardView(p: BoardProps) {
         list.forEach((id, k) => {
           let pos: { x: number; y: number };
           if (loc === 'off') pos = offPos(mine, k);
-          else if (loc === 'bar') pos = barPos(mine, k);
+          else if (loc === 'bar') pos = barPos(mine, k, list.length);
           else pos = checkerPos(Number(loc.slice(1)), k, list.length);
           if (prevLocRef.current.get(id) !== loc) moved.add(id);
           prevLocRef.current.set(id, loc);
@@ -240,6 +243,9 @@ export function BoardView(p: BoardProps) {
     if (loc) p.onLocClick(loc);
   };
 
+  const dimSet = useRef(p.movable);
+  // Keep the legal movable set while a fragment is animating.
+  if (p.movable.size || p.targets.size) dimSet.current = p.movable;
   const ms = p.moveMs;
 
   return (
@@ -270,15 +276,20 @@ export function BoardView(p: BoardProps) {
       {/* selection target highlights */}
       {[...(p.hints ? p.targets : [])].map((loc) => {
         if (loc === 'off') {
-          return <rect key="t-off" className="pulse" x={TRAY_X + 3} y={MID_Y + 4} width={TRAY_W - 6} height={BOTTOM - MID_Y - 7} rx="8" fill={th.target} opacity="0.35" pointerEvents="none" />;
+          return <g key="t-off" data-hint="target-off" pointerEvents="none">
+            <rect x={TRAY_X + 3} y={MID_Y + 4} width={TRAY_W - 6} height={BOTTOM - MID_Y - 7} rx="8" fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+            <rect x={TRAY_X + 3} y={MID_Y + 4} width={TRAY_W - 6} height={BOTTOM - MID_Y - 7} rx="8" fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+          </g>;
         }
         const slot = Number(loc.slice(1));
         const n = checkers.filter((c) => c.loc === loc).length;
-        const pos = checkerPos(slot, Math.min(n, 4), Math.max(n + 1, 1));
+        const pos = checkerPos(slot, n, n + 1);
         return (
-          <g key={'t' + loc} pointerEvents="none">
-            <path d={pointPath(slot)} fill={th.target} opacity="0.22" />
-            <circle className="pulse" cx={pos.x} cy={pos.y} r={R - 4} fill="none" stroke={th.target} strokeWidth="4" strokeDasharray="6 5" />
+          <g key={'t' + loc} data-hint="target" pointerEvents="none">
+            <path d={pointPath(slot)} fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+            <path d={pointPath(slot)} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+            <circle cx={pos.x} cy={pos.y} r={R - 3} fill={`url(#${uid}-ck-${p.mover === 0 ? 'white' : 'black'})`} fillOpacity="0.45" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+            <circle cx={pos.x} cy={pos.y} r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
           </g>
         );
       })}
@@ -290,26 +301,32 @@ export function BoardView(p: BoardProps) {
         const x = isGhost ? ghost!.x : c.x;
         const y = isGhost ? ghost!.y : c.y;
         const movable = p.hints && c.top && c.color === p.mover && p.movable.has(c.loc);
-        const selected = c.top && c.color === p.mover && p.selected === c.loc;
+        const selected = p.hints && c.top && c.color === p.mover && p.selected === c.loc;
         return (
           <g
             key={c.id}
+            data-checker={c.id}
+            data-loc={c.loc}
+            data-color={c.color}
             className={'ck' + (isGhost ? ' dragging' : '')}
-            style={{ transform: `translate(${x}px, ${y}px)`, transitionDuration: isGhost ? '0ms' : `${ms}ms` }}
+            style={{ opacity: p.hints && p.mover === c.color && dimSet.current.size > 0 && !(c.top && dimSet.current.has(c.loc)) ? th.dim : 1, transform: `translate(${x}px, ${y}px)`, transitionDuration: isGhost ? '0ms' : `${ms}ms` }}
             pointerEvents="none"
           >
             {c.slab ? (
               <rect x={-TRAY_W / 2 + 10} y={-SLAB_H / 2} width={TRAY_W - 20} height={SLAB_H} rx="4" fill={`url(#${uid}-ck-${c.color === 0 ? 'white' : 'black'})`} stroke={col.ring} strokeWidth="1" />
             ) : (
-              <g filter={`url(#${uid}-shadow)`}>
+              <g filter={`url(#${uid}-${selected ? 'lift' : 'shadow'})`}>
                 <circle r={R} fill={`url(#${uid}-ck-${c.color === 0 ? 'white' : 'black'})`} stroke={col.dark} strokeWidth="1.5" />
-                <circle r={R - 7} fill="none" stroke={col.ring} strokeWidth="2" opacity="0.8" />
-                <circle r={R - 15} fill="none" stroke={col.ring} strokeWidth="1.2" opacity="0.55" />
+                {(c.top || c.count <= 5) && <><circle r={R - 7} fill="none" stroke={col.ring} strokeWidth="2" opacity="0.8" />
+                <circle r={R - 15} fill="none" stroke={col.ring} strokeWidth="1.2" opacity="0.55" /></>}
                 {(movable || selected) && (
-                  <circle r={R + 2} fill="none" stroke={th.highlight} strokeWidth={selected ? 5 : 3} filter={`url(#${uid}-glow)`} className={selected ? '' : 'pulse'} />
+                  <g data-hint={selected ? 'selected' : 'movable'}>
+                    <circle r={R - 3} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 4 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 4 : 0)} />
+                  </g>
                 )}
                 {c.top && c.count > 5 && (
-                  <text y="6" fontSize="18" fontWeight="700" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
+                  <text y="0" dominantBaseline="central" fontSize="26" fontWeight="700" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
                     {c.count}
                   </text>
                 )}
