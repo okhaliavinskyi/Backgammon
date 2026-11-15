@@ -881,20 +881,20 @@ input:focus {
 .phone-game .score { grid-template-columns: 1fr; gap: 3px; }
 .phone-game .score small { font-size: 11px; }
 .board-wrap.compact-board { min-height: 0; aspect-ratio: 1000 / 1100; width: min(100%, calc((100dvh - 290px) * 1000 / 1100)); margin-top: 0; --die: 8cqw; }
-.mobile-hud { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 10px; margin-top: auto; }
-.mobile-hud .pbar { position: relative; flex-direction: row; justify-content: flex-start; text-align: left; padding: 12px 10px; gap: 8px; border-radius: 10px; background: rgba(255,255,255,.025); border-color: rgba(255,255,255,.07); box-shadow: none; }
+.mobile-hud { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 104px minmax(0, 1fr); align-items: stretch; gap: 8px; margin-top: auto; }
+.mobile-hud .pbar { position: relative; flex-direction: column; justify-content: center; text-align: center; padding: 10px 6px; gap: 6px; border-radius: 10px; background: rgba(255,255,255,.025); border-color: rgba(255,255,255,.07); box-shadow: none; }
 .mobile-hud .pbar.active { border-color: color-mix(in srgb, var(--accent) 28%, transparent); }
 .mobile-hud .pbar.active::after { content: ''; position: absolute; right: 9px; top: 10px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
 .mobile-hud .pchip { width: 18px; height: 18px; flex: none; }
-.mobile-hud .pinfo { min-width: 0; }
-.mobile-hud .pname { white-space: nowrap; font-size: 12px; font-weight: 500; gap: 4px; }
+.mobile-hud .pinfo { min-width: 0; width: 100%; flex: none; }
+.mobile-hud .pname { justify-content: center; white-space: nowrap; font-size: 12px; font-weight: 500; gap: 4px; }
 .mobile-hud .pmeta { font-size: 10px; margin-top: 3px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mobile-hud .pname .tag:not(.warn) { display: none; }
 .mobile-hud .tag.warn { font-size: 9px; }
 .mobile-hud .clock { margin: 0; font-size: 11px; padding: 2px 3px; background: transparent; flex-shrink: 0; }
-.mobile-hud .controls { grid-column: 1 / -1; grid-row: 2; width: 100%; flex-direction: row; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.05); }
-.mobile-hud .controls .status { flex: 1; text-align: left; font-size: 11px; }
-.mobile-hud .controls .btn { width: auto; min-height: 44px; padding: 8px 12px; border-radius: 9px; font-size: 12px; font-weight: 500; }
+.mobile-hud .controls { grid-column: 2; grid-row: 1; width: 100%; flex-direction: column; flex-wrap: nowrap; justify-content: center; gap: 4px; padding: 0; border: 0; }
+.mobile-hud .controls .status { flex: none; width: 100%; margin: 0; text-align: center; font-size: 11px; }
+.mobile-hud .controls .btn { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 9px; font-size: 12px; font-weight: 500; }
 .mobile-hud .controls .btn.primary, .mobile-hud .controls .btn.gold { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); }
 .mobile-hud .controls .btn:disabled { opacity: .3; }
 .mobile-hud .controls .icon-btn { min-width: 44px; min-height: 44px; border-color: transparent; background: transparent; color: var(--muted); }

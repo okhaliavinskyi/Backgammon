@@ -511,3 +511,8 @@ Round 3 (Opus, fresh context) — 0 P0/P1; rounds 1-2 fixes confirmed by executi
 
 - Changed only the mobile HUD top margin from8px to auto, pushing its player cards and action row to the lower screen edge while retaining12px bottom/safe-area padding.
 - Live360x780 wood/minimal/malachite: HUD top518.140625->645.203125px, HUD bottom gap139.0625->12px. Board top66.1875px, header gap12px, width344px, height431.953125px, viewBox0 0 876 1100 and checker22.775726px all unchanged. Build and measured browser check EXIT=0; console errors0 on3 pages. Added bottom-hud-360-{theme}.png. No push/deploy.
+
+### Owner revision: controls between player cards (2026-11-15)
+
+- Changed only mobile HUD CSS to a three-column row: player /104px controls / opponent. Controls now sit in column2,row1; player cards use compact centered content, and the whole HUD keeps margin-top:auto and12px bottom/safe-area padding. Board untouched.
+- Live360x780 across wood/minimal/malachite, own/opponent/manual roll/double/undo/10-stack:21 browser pages including auxiliary countdown captures, console errors0. Every captured state measured controls between cards on the same row, HUD bottom gap12px; board top66.1875,width344,height431.953125 unchanged. Build/diff checks EXIT=0; state checks EXIT=0. Added centered-{state}-360-{theme}.png. No push/deploy.
