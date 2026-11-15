@@ -1,74 +1,80 @@
-# Mobile turn UX, move hints, vertical board, room rejoin — Implementation Plan
+# Mobile turn UX, move hints, stacks, vertical board, room rejoin — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement spec `docs/superpowers/specs/2026-11-15-mobile-ux-rejoin-design.md`: auto-confirm with an undo window, auto-roll with a doubling countdown, visible per-theme move hints, a vertical board on portrait phones, and rejoining a full room into an offline seat.
+**Goal:** Implement spec `docs/superpowers/specs/2026-11-15-mobile-ux-rejoin-design.md` (A–F).
 
-**Architecture:** Server change is confined to `RoomDO` (`info()` + `onHello`). Client turn flow stays in `Game.tsx`; hints live in `Board.tsx` + `themes.ts`; the vertical board is the same geometry under an SVG transpose (`matrix(0 1 1 0 0 0)`), with text counter-transposed and pointer coords swapped.
+**Architecture:** Server change is confined to `RoomDO` (`info()` + `onHello`). Client turn flow stays in `Game.tsx`; hints and stacks live in `Board.tsx` + `themes.ts` + `geometry.ts`; the vertical board is a clockwise rotation of a geometry with a shorter cross axis (660 instead of 800).
 
-**Tech Stack:** React 19 + Vite, zustand 5.1.0 (`persist` with `version`/`migrate`, verified in `node_modules/zustand/middleware/persist.d.ts`), Cloudflare Workers + Durable Objects (wrangler 4), vitest 5, Playwright (e2e, run via npx cache).
+**Tech Stack:** React 19 + Vite, zustand 5.1.0 (`persist` `version`/`migrate` — checked in `node_modules/zustand/middleware/persist.d.ts:46-54`; migrate runs only when stored version ≠ option version, confirmed by review simulation), Cloudflare Workers + Durable Objects (wrangler 4), vitest 5, Playwright (npx cache, `channel: 'chrome'`).
 
 ## Global Constraints
 
-- Defaults: `autoConfirm=true`, `autoRoll=true`; settings toggles stay.
-- Undo window after a finished turn: **1200 ms**. Doubling countdown before auto-roll: **2000 ms**. Auto-roll delay: **450 ms**.
-- Hint contrast: every hint mark ≥ **3:1** against `field`, `pointA`, `pointB`, both checker bases (WCAG 1.4.11).
-- Vertical board: portrait **and** viewport width < **768 px**. Board ≥ **90%** of usable height at 360×780.
-- Rejoin: only into a seat with `disconnectedAt !== null`; password still required if the room has one; old token stops matching.
-- Verification widths: 360, 768, 1440; themes: wood, minimal, malachite.
+- Defaults: `autoConfirm=true`, `autoRoll=true`; toggles stay.
+- Undo window **1200 ms**; doubling countdown **2000 ms**; auto-roll delay **450 ms**.
+- Hint marks: ≥ **3:1** contrast (max of fill/edge) against `field`, `pointA`, `pointB`, white and black checker bases; edge band ≥ **2 CSS px** at 360 px width.
+- Stacks: height ≤ **290** board units (5 × 58) for any n ≤ 15.
+- Vertical board: portrait **and** width < **768 px**; cross axis **660**; at 360×780 board height ≥ **0.65** of `innerHeight`, checker diameter ≥ **30 CSS px** (computed: 0.668 / 30.2 px; 390×844: 0.671 / 32.9; 412×915: 0.656 / 34.8).
+- Rejoin: only into a seat with `disconnectedAt !== null`; password still required; old token stops matching.
+- Verification: widths 360, 768, 1440; themes wood, minimal, malachite.
 
-## Readers of changed shared fields (Frame rule)
+## Readers of changed shared fields
 
-| Field | Readers (all must stay correct) |
+| Field | Readers |
 |---|---|
-| `Settings.autoRoll/autoConfirm` defaults + persist version | `screens/Game.tsx:180,221`, `screens/Menus.tsx:312-313`, `e2e/online.e2e.cjs:7` (writes `version: 0` — after migration it would flip autoRoll to `true` and break the shake scenario at `:95-112`) |
-| `RoomInfo` (`info()` response) | `screens/Room.tsx` `Info` interface, `worker/test/integration.test.ts:54` (`toMatchObject`, extra fields OK), `:162` (`toEqual({ exists: false })` — must stay exactly that for missing rooms), `:178` |
-| `onHello` `room_full` branch | `remote.ts` `onFatal('room_full')`, `Room.tsx` full screen, test `:79-80` (both online → still `room_full`) |
-| `BoardTheme` keys | `Board.tsx` only (`grep -n "th\.\|THEMES" apps/web/src`) |
+| `Settings.autoRoll/autoConfirm` defaults + persist version | `screens/Game.tsx:180,221`, `screens/Menus.tsx:312-313`, `e2e/online.e2e.cjs:7` (seeds `version: 0` → would migrate to autoRoll=true and break the shake scenario `:95-112`) |
+| `RoomInfo` | `screens/Room.tsx` `Info`, `worker/test/integration.test.ts:54` (`toMatchObject`), `:161` (`toEqual({ exists: false })` — unchanged for missing rooms), `:177` |
+| `onHello` `room_full` | `remote.ts` `onFatal`, `Room.tsx`, test `:79-80` (both online → still `room_full`) |
+| hint classes `.pulse` on board marks | `e2e/online.e2e.cjs:22,26,28` (move playing selectors) — replaced by `data-hint` |
+| `geometry.ts` constants (`VB_H`, `TOP`, `BOTTOM`, `MID_Y`, `POINT_LEN`, `stackSpacing`) | `Board.tsx`, `geometry.ts` itself (`checkerPos`, `offPos`, `barPos`) — `grep -n "from './geometry'" apps/web/src` |
 
-## Known ceiling (accepted)
+## Known ceilings (accepted)
 
-- ponytail: a creator who lost their token while the room is still **waiting** joins as seat 1 against their own offline seat 0 (no free-vs-reclaim choice). Upgrade path: show "take seat as <name>" vs "join as opponent" when `status === 'waiting'`.
-- ponytail: in a passwordless room anyone with the link can take an offline seat (owner accepted).
+- ponytail: creator who lost their token while the room is still **waiting** joins as seat 1 against their own offline seat 0. Upgrade: offer "take seat as <name>" vs "join as opponent".
+- ponytail: passwordless room — anyone with the link can take an offline seat (owner accepted).
+- Phantom sockets (dropped without close) keep a seat "online" → rejoin gets `room_full` until the platform closes the socket. Heartbeat timeout out of scope.
+
+## Pipeline position
+
+Design step (CLAUDE.md step 5) runs **after** plan review and **before** sign-off: screens in `docs/design/` for C, D, F (three themes × 360/768/1440, states: own turn with hints, selected with targets, undo window, ×2 countdown, stack of 10, rejoin screen). Task 3 colour values and Task 5 corner mapping are confirmed or replaced by the approved screens; the gates below stay.
 
 ---
 
 ## Batch map
 
-Web tasks run `tsc -p apps/web` and `vite build`, which read every web file — so **no two web tasks share a batch**.
+Web tasks run `tsc -p apps/web` / `vite build`, which read every web file → one web task per batch. E2E needs `wrangler dev` serving `worker/src` → e2e runs only at batch end by the orchestrator, never inside a batch where `worker/src` is being written.
 
 | Batch | Task | Owner files (write) | Reads | Model |
 |---|---|---|---|---|
 | 0 | T0 i18n strings | `apps/web/src/lib/i18n.ts` | — | orchestrator (Opus) |
-| 1 | T1 server rejoin | `worker/src/room.ts`, `worker/test/integration.test.ts` | `@nardy/core` | GPT-5.6-Sol (codex) |
-| 1 | T2 turn flow (auto-confirm/undo, auto-roll/double, one-target tap, settings migration, e2e settings) | `apps/web/src/screens/Game.tsx`, `apps/web/src/lib/settings.ts`, `apps/web/src/styles.css`, `e2e/online.e2e.cjs` | web package | orchestrator (Opus) |
-| 2 | T3 move hints | `apps/web/src/components/Board.tsx`, `apps/web/src/components/themes.ts`, `apps/web/scripts/contrast.ts` (new) | web package | Sonnet |
-| 3 | T4 rejoin screen | `apps/web/src/screens/Room.tsx` | T1 `info()` fields, web package | Sonnet |
-| 4 | T5 vertical board + compact phone chrome | `apps/web/src/components/geometry.ts`, `apps/web/src/components/Board.tsx`, `apps/web/src/screens/Game.tsx`, `apps/web/src/styles.css` | web package | orchestrator (Opus) |
-| end | Review rounds: flagship reviewers until zero P0-P2, then full diff → codex GPT-6-Astra-Medium | read-only | | |
+| 1 | T1 server rejoin | `worker/src/room.ts`, `worker/test/integration.test.ts` | `@nardy/core`; own `wrangler dev` on **:8788** | Sonnet (needs localhost network; codex unavailable: `gpt-6.1-sol` rejected for ChatGPT login, verified 2026-11-15) |
+| 1 | T2 turn flow | `apps/web/src/screens/Game.tsx`, `apps/web/src/lib/settings.ts`, `apps/web/src/styles.css`, `e2e/online.e2e.cjs` | web package (no e2e run in-batch) | orchestrator (Opus) |
+| end 1 | e2e run + worker integration on :8787 | read-only | | orchestrator |
+| 2 | T3 hints + stacks | `apps/web/src/components/Board.tsx`, `apps/web/src/components/themes.ts`, `apps/web/src/components/geometry.ts`, `apps/web/scripts/contrast.ts` (new), `e2e/online.e2e.cjs` | web package | Sonnet |
+| 3 | T4 rejoin screen | `apps/web/src/screens/Room.tsx`, `e2e/online.e2e.cjs` | T1 `info()` fields | Sonnet |
+| 4 | T5 vertical board | `apps/web/src/components/geometry.ts`, `apps/web/src/components/Board.tsx`, `apps/web/src/screens/Game.tsx`, `apps/web/src/styles.css` | web package | orchestrator (Opus) |
+| end | Review: flagship reviewers until zero P0-P2, then full diff → codex GPT-6-Astra-Medium if the CLI accepts a model for this login (otherwise named as not run) | read-only | | |
 
-Batch 1 pairs a worker task with a web task: disjoint files, disjoint typecheck projects (`worker/tsconfig.json` does not include `apps/web`).
-Before every codex dispatch: `< /dev/null`, echo-probe of 3 values from this plan, `node_modules` present in the worktree.
+`e2e/online.e2e.cjs` is written in batches 1, 2, 3 — one writer per batch.
+Before any codex dispatch: `< /dev/null`, echo-probe of 3 values from this plan, `node_modules` in the worktree.
 
 ---
 
 ### Task 0: i18n strings
 
-**Files:** Modify `apps/web/src/lib/i18n.ts` (ru block near `:46-60`, en block near `:177-191`).
+**Files:** `apps/web/src/lib/i18n.ts` (ru next to `roomFull` `:47`, en next to `:178`).
+**Produces:** `T.rejoinAs` (`'Вернуться в игру как'` / `'Rejoin as'`), `T.rejoin` (`'Вернуться'` / `'Rejoin'`), `T.more` (`'Ещё'` / `'More'`).
 
-**Produces:** keys `T.rejoinAs` (`'Вернуться в игру как'` / `'Rejoin as'`), `T.rejoin` (`'Вернуться'` / `'Rejoin'`), `T.autoSending` (`'Ход отправляется…'` / `'Sending move…'`), `T.more` (`'Ещё'` / `'More'`).
-
-- [ ] Add the four keys to both language objects next to `roomFull`.
-- [ ] `npm run typecheck -w @nardy/web` → exit 0 (the `en` object is typed by `ru` keys, so a missing key fails here).
-- [ ] Commit `apps/web/src/lib/i18n.ts` only: `feat(web): strings for rejoin, auto-send, more menu`.
+- [ ] Add the three keys to both objects.
+- [ ] `npm run typecheck -w @nardy/web; echo EXIT=$?` → 0.
+- [ ] Commit `apps/web/src/lib/i18n.ts`: `feat(web): strings for rejoin and more menu`.
 
 ### Task 1: Server — rejoin into an offline seat
 
-**Files:** Modify `worker/src/room.ts` (`RoomInfo` `:59-66`, `info()` `:110-121`, `onHello` `:174-212`); Test `worker/test/integration.test.ts`.
+**Files:** `worker/src/room.ts` (`RoomInfo` `:59-66`, `info()` `:110-121`, `onHello` `:174-212`), `worker/test/integration.test.ts`.
+**Produces:** `RoomInfo.seatsOffline?: number`, `RoomInfo.offlineName?: string | null`. Seat to reclaim = first `c in [0,1]` with `seats[c]?.disconnectedAt !== null`.
 
-**Produces:** `RoomInfo.seatsOffline?: number`, `RoomInfo.offlineName?: string | null`. Reclaim rule: seat to take = first `c in [0,1]` with `seats[c] && seats[c].disconnectedAt !== null`.
-
-- [ ] **Step 1: failing tests** — append to `describe('hardening')`:
+- [ ] **Step 1: failing tests** — append inside `describe('hardening')`:
 
 ```ts
 const BASE2 = process.env.NARDY_URL ?? 'http://127.0.0.1:8787';
@@ -84,79 +90,72 @@ async function fullRoom(password?: string) {
 }
 const info = async (id: string) => (await fetch(`${BASE2}/api/rooms/${id}`)).json();
 const settle = () => new Promise((r) => setTimeout(r, 300));
+const reply = (c: Client) => c.wait((m) => m.t === 'welcome' || m.t === 'error');
 
 it('both online: no token → room_full, info says 0 offline', async () => {
   const { id } = await fullRoom('pw');
   expect(await info(id)).toMatchObject({ seatsTaken: 2, seatsOffline: 0, offlineName: null });
   const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Eve', password: 'pw' });
-  expect(await c.wait((m) => m.t === 'error')).toMatchObject({ code: 'room_full' });
+  expect(await reply(c)).toMatchObject({ t: 'error', code: 'room_full' });
 });
 
 it('offline seat: no token + right password → takes the seat, old token dead', async () => {
   const { id, b, wb } = await fullRoom('pw');
   b.ws.close(); await settle();
-  expect(await info(id)).toMatchObject({ seatsOffline: 1, offlineName: 'Bob' });
   const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Bob2', password: 'pw' });
-  const w = (await c.wait((m) => m.t === 'welcome')) as Extract<ServerMsg, { t: 'welcome' }>;
-  expect(w.you).toBe(1);
-  expect(w.token).not.toBe(wb.token);
+  const w = await reply(c);
+  expect(w).toMatchObject({ t: 'welcome', you: 1 });
+  expect((w as Extract<ServerMsg, { t: 'welcome' }>).token).not.toBe(wb.token);
   c.ws.close(); await settle();
+  // A live old token would be welcomed regardless of password; bad_password proves it no longer matches.
   const old = new Client(); await old.open(id); old.send({ t: 'hello', name: 'Bob', token: wb.token, password: 'nope' });
-  expect(await old.wait((m) => m.t === 'error')).toMatchObject({ code: 'bad_password' });
+  expect(await reply(old)).toMatchObject({ t: 'error', code: 'bad_password' });
 });
 
-it('offline seat: wrong password → bad_password, seat untouched', async () => {
+it('offline seat: info names it; wrong password → bad_password, seat untouched', async () => {
   const { id, b } = await fullRoom('pw');
   b.ws.close(); await settle();
+  expect(await info(id)).toMatchObject({ seatsOffline: 1, offlineName: 'Bob' });
   const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Eve', password: 'x' });
-  expect(await c.wait((m) => m.t === 'error')).toMatchObject({ code: 'bad_password' });
+  expect(await reply(c)).toMatchObject({ t: 'error', code: 'bad_password' });
   expect(await info(id)).toMatchObject({ seatsOffline: 1, offlineName: 'Bob' });
 });
 ```
 
-- [ ] **Step 2: run, expect FAIL** — `cd worker && npx wrangler dev --port 8787` (background), then `cd worker && NARDY_URL=http://127.0.0.1:8787 npx vitest run test/integration.test.ts; echo EXIT=$?` → test 1 fails on `seatsOffline` undefined, test 2 fails with `room_full`. Record the failing assertion names.
+- [ ] **Step 2: run, expect FAIL** — `cd worker && npx wrangler dev --port 8788` (background), then `cd worker && NARDY_URL=http://127.0.0.1:8788 npx vitest run test/integration.test.ts; echo EXIT=$?`. Expected (review run): `Tests 3 failed | 5 passed`; test 1 on `seatsOffline` undefined, test 2 on `room_full` instead of `welcome`, test 3 on `seatsOffline`.
 - [ ] **Step 3: implement**
 
 ```ts
-// RoomInfo: add
+// RoomInfo
   seatsOffline?: number;
   offlineName?: string | null;
 
-// in RoomDO
+// RoomDO
   private offlineSeat(): Color | null {
     const s = this.s!;
     for (const c of [0, 1] as Color[]) if (s.seats[c] && s.seats[c]!.disconnectedAt !== null) return c;
     return null;
   }
 
-// info(): add to the exists:true object
+// info(), inside the exists:true object
       seatsOffline: s.seats.filter((x) => x && x.disconnectedAt !== null).length,
       offlineName: (() => { const c = this.offlineSeat(); return c === null ? null : s.seats[c]!.name; })(),
 
-// onHello, replace the `free === null` branch:
+// onHello: replace the `const free = ...` line
       const free = s.seats[0] === null ? 0 : s.seats[1] === null ? 1 : this.offlineSeat();
-      if (free === null) {
-        this.send(ws, { t: 'error', code: 'room_full' });
-        return ws.close(4403, 'room_full');
-      }
-      seat = free;
-      s.seats[seat] = { name, token: randomToken(), disconnectedAt: null };
 ```
 
-Note: the password check already runs before `free` for every token-less hello, so reclaim inherits it. `s.seats[seat] = {...}` replaces the token → the old one no longer matches. A reclaim must not restart the match: `!s.match && s.seats[0] && s.seats[1]` is already false when a match exists.
-Edge: a reclaim when a seat is null cannot happen (null seat wins first).
+The password check above `free` already covers every token-less hello. `s.seats[seat] = { name, token: randomToken(), disconnectedAt: null }` replaces the token. Match is not restarted (`!s.match` is false).
+- [ ] **Step 4:** re-run → `Tests 8 passed`, EXIT=0.
+- [ ] **Step 5: break-check** — replace `this.offlineSeat()` with `null`; test 2 must fail naming `room_full` (not a timeout); restore.
+- [ ] **Step 6:** `npm run typecheck -w @nardy/worker; echo EXIT=$?` → 0; kill wrangler :8788. Commit the two files: `feat(worker): rejoin a full room into an offline seat`.
 
-- [ ] **Step 4: run → PASS**, plus the whole file (existing tests at `:79-80`, `:162` unchanged). `echo EXIT=$?` must print 0.
-- [ ] **Step 5: gate check by breaking** — temporarily revert `this.offlineSeat()` in `free` to `null`; test 2 must go red; restore.
-- [ ] **Step 6:** `npm run typecheck -w @nardy/worker` → 0. Commit `worker/src/room.ts worker/test/integration.test.ts`: `feat(worker): rejoin a full room into an offline seat`.
-
-### Task 2: Turn flow — auto-confirm with undo window, auto-roll with doubling countdown, one-target tap, settings migration
+### Task 2: Turn flow
 
 **Files:** `apps/web/src/lib/settings.ts`, `apps/web/src/screens/Game.tsx`, `apps/web/src/styles.css`, `e2e/online.e2e.cjs`.
+**Produces:** `.countdown` CSS (bar emptying over `--ms`); `Game.tsx` consts `UNDO_MS`, `DOUBLE_MS`; `button.undo-send`.
 
-**Produces:** CSS class `.countdown` (a bar that empties via `animation-duration` = inline `--ms`). `Game.tsx` local consts `UNDO_MS = 1200`, `DOUBLE_MS = 2000`.
-
-- [ ] **Step 1: settings migration** in `settings.ts`:
+- [ ] **Step 1: settings migration** (`settings.ts`):
 
 ```ts
       autoRoll: true,
@@ -172,22 +171,29 @@ Edge: a reclaim when a seat is null cannot happen (null seat wins first).
     },
 ```
 
-Check: in the browser, `localStorage.setItem('nardy.settings', '{"state":{"autoRoll":false,"autoConfirm":false},"version":0}')`, reload, Settings screen shows both toggles ON; toggle off, reload, they stay OFF (version is now 1).
-
-- [ ] **Step 2: undo window** — replace the `autoConfirm` effect (`Game.tsx:179-184`):
+- [ ] **Step 2: undo window** — replace `Game.tsx:179-184`:
 
 ```ts
 const UNDO_MS = 1200;
 const [sendAt, setSendAt] = useState<number | null>(null);
+const [sent, setSent] = useState(false);
+useEffect(() => setSent(false), [m.seq, m.gameNo]);
+const submit = useCallback(() => {
+  if (!pending || sent) return;
+  setSent(true);
+  setSendAt(null);
+  submittedSeq.current = pending.seq;
+  ctrl.move(pending.chains.flat());
+}, [pending, ctrl, sent]);
 useEffect(() => {
-  if (!(turnDone && pending && pending.chains.length > 0 && st.autoConfirm && !busy)) { setSendAt(null); return; }
+  if (sent || !(turnDone && pending && pending.chains.length > 0 && st.autoConfirm && !busy)) { setSendAt(null); return; }
   setSendAt(Date.now() + UNDO_MS);
   const id = setTimeout(submit, UNDO_MS);
   return () => clearTimeout(id);
-}, [turnDone, pending, st.autoConfirm, submit, busy]);
+}, [turnDone, pending, st.autoConfirm, submit, busy, sent]);
 ```
 
-`undo()` changes `pending` → effect cleanup cancels the timer; after a new finish the window restarts. In the controls row, when `sendAt` is set and `st.autoConfirm`: render
+(The old `submit` at `:173-177` is replaced by this one.) `canInteract` gains `&& !sent`. Controls row: when `st.autoConfirm`, the old `↶ Undo` and `✓ Done` buttons are not rendered; while `sendAt !== null` render
 
 ```tsx
 <button className="btn primary undo-send" onClick={undo}>
@@ -196,31 +202,41 @@ useEffect(() => {
 </button>
 ```
 
-and hide the `✓ Done` button when `st.autoConfirm`.
-
-- [ ] **Step 3: auto-roll + doubling countdown** — replace the auto-roll effect (`Game.tsx:220-225`):
+When `!st.autoConfirm`, the old buttons render as today.
+- [ ] **Step 3: auto-roll + doubling countdown** — replace `Game.tsx:220-225`:
 
 ```ts
 const DOUBLE_MS = 2000;
+const [doubled, setDoubled] = useState(false);
+useEffect(() => setDoubled(false), [m.seq, m.gameNo]);
 useEffect(() => {
-  if (!rollActor || !st.autoRoll) return;
+  if (!rollActor || !st.autoRoll || doubled) return;
   const id = setTimeout(doRoll, mayDouble ? DOUBLE_MS : 450);
   return () => clearTimeout(id);
-}, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq]);
+}, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq, doubled]);
 ```
 
-Roll prompt block (`Game.tsx` `{rollActor && !shaking && ...}`): when `st.autoRoll`, render only the `×2 Double` button (if `mayDouble`) with `<i className="countdown" style={{'--ms': '2000ms'}} />`; the `🎲 Roll` button, shake hint and enable-shake button render only when `!st.autoRoll`. Shake listener effect gets `!st.autoRoll` in its guard. `onLocClick`'s `if (rollActor && !mayDouble) return doRoll();` stays only for `!st.autoRoll`.
+Roll prompt block: when `st.autoRoll`, render only (if `mayDouble && !doubled`)
 
-- [ ] **Step 4: one-target tap** — in `onLocClick` before `setSelected`:
+```tsx
+<button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
+  ×2 {T.double}
+  <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />
+</button>
+```
+
+`🎲 Roll`, the shake hint and enable-shake render only when `!st.autoRoll`. Shake listener guard gets `!st.autoRoll`. In `onLocClick`, `if (rollActor && !mayDouble) return doRoll();` becomes `if (rollActor && !mayDouble && !st.autoRoll) return doRoll();`.
+- [ ] **Step 4: tap-to-move with one target** — at the top of `onLocClick`'s interactive part:
 
 ```ts
-if (movable.has(loc) && selected !== loc && pending && mover !== null) {
+if (movable.has(loc) && pending && mover !== null) {
   const ds = destinationsFrom(pending.ts, locToPos(loc, mover), memoRef.current);
   if (ds.length === 1) return playChain(ds[0].steps);
 }
 ```
 
-- [ ] **Step 5: CSS** in `styles.css` after `.controls .status`:
+(No `selected !== loc` condition: an auto-selected checker with one target also moves on tap.)
+- [ ] **Step 5: CSS** after `.controls .status`:
 
 ```css
 .countdown { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: currentColor; opacity: .55; transform-origin: left; animation: countdown var(--ms) linear forwards; }
@@ -228,18 +244,18 @@ if (movable.has(loc) && selected !== loc && pending && mover !== null) {
 .undo-send, .center-actions .btn.gold { position: relative; overflow: hidden; }
 ```
 
-Add `.countdown` to the existing `prefers-reduced-motion` block with `animation: none; opacity: 0;`.
-
-- [ ] **Step 6: e2e settings** — `e2e/online.e2e.cjs:7`: set `version: 1` and keep `autoRoll: false` (the shake scenario needs it); add a second phone context `M2` with `autoRoll: true, autoConfirm: true` asserting: no `button:has-text("Бросить")` within 1500 ms of its turn and dice appear (`.die-wrap` count 2); after its last checker move a `button.undo-send` is visible, clicking it brings the checker back (board text differs), letting it lapse sends the move (opponent's `state.seq` grows).
-- [ ] **Step 7:** `npm run typecheck -w @nardy/web && npm run build` → 0. Live run in the session browser: AI game at 360 width, both toggles default ON from a fresh profile; turn auto-sends after 1.2 s; undo within the window works; cube-enabled AI game shows the ×2 countdown, then rolls.
-- [ ] **Step 8: break-check** — set `UNDO_MS = 0` → the e2e undo assertion must go red; restore.
+In the `prefers-reduced-motion` block: `.countdown { animation: none; opacity: 0; }`.
+- [ ] **Step 6: e2e** (`e2e/online.e2e.cjs`): seeds use `version: 1` (keep `autoRoll: false` for the existing players and the shake phone). Make it fail loudly: at the end `if (errors.length) process.exit(1)`; after the online game assert pips changed for both players (throw with the numbers otherwise); assert shake dice === 2. Add phone context `M2` playing **vs AI** (`/play?mode=ai&level=beginner`) with seed `autoRoll: true, autoConfirm: true`: (a) within 1500 ms of its turn no `button:has-text("Бросить")` exists and `.die-wrap` count is 2; (b) after its last move `button.undo-send` is visible; click it → own pip count in `.pbar.bottom .pmeta` returns to the pre-move value; (c) finish again and wait 1600 ms → the AI's turn starts (`statusText` changes away from "Ваш ход"), i.e. the move was sent.
+- [ ] **Step 7:** `npm run typecheck -w @nardy/web && npm run build; echo EXIT=$?` → 0. Live run in the session browser at 360: fresh profile shows both toggles ON; AI game auto-rolls, auto-sends after 1.2 s, undo inside the window works, cube AI game shows ×2 countdown then rolls; console clean.
 - [ ] Commit the four files: `feat(web): auto-confirm with undo window, auto-roll with doubling countdown`.
+- [ ] **Batch end (orchestrator):** `wrangler dev :8787` with T1 merged in the tree; `node e2e/online.e2e.cjs; echo EXIT=$?` → 0; break-check: `UNDO_MS = 0` → e2e (b) must fail; restore. Worker integration on :8787 → 0.
 
-### Task 3: Move hints per theme
+### Task 3: Move hints and stacks
 
-**Files:** `apps/web/src/components/themes.ts`, `apps/web/src/components/Board.tsx`, create `apps/web/scripts/contrast.ts`.
+**Files:** `apps/web/src/components/themes.ts`, `apps/web/src/components/Board.tsx`, `apps/web/src/components/geometry.ts`, create `apps/web/scripts/contrast.ts`, `e2e/online.e2e.cjs`.
+**Produces:** `BoardTheme.hint: { fill: string; edge: string }`, `BoardTheme.dim: number`; `data-hint="movable" | "selected" | "target" | "target-off"` attributes on hint groups; `STACK_H = 290` in `geometry.ts`.
 
-**Produces:** `BoardTheme.hint: { fill: string; edge: string }`, `BoardTheme.dim: number` (opacity for non-movable own checkers). Values come from the approved design screens; starting values (contrast-checked 2026-11-15, two-tone so one tone always clears 3:1 against light **and** dark points):
+Starting values (all 15 pairs ≥ 3 by max(fill, edge), review-verified):
 
 | theme | hint.fill | hint.edge | dim |
 |---|---|---|---|
@@ -247,10 +263,13 @@ Add `.countdown` to the existing `prefers-reduced-motion` block with `animation:
 | minimal | `#ffe600` | `#0b0f18` | 0.5 |
 | malachite | `#ffd000` | `#08130f` | 0.55 |
 
+Ring geometry (two-tone, edge band ≥ 2 CSS px at 360: horizontal scale 344/1000 = 0.344 px/unit → 6 units per side): edge stroke width = fill width + 12.
+
 - [ ] **Step 1: failing check** — `apps/web/scripts/contrast.ts`:
 
 ```ts
 import { THEMES } from '../src/components/themes.ts';
+import { HINT_FILL_W, HINT_EDGE_W } from '../src/components/geometry.ts';
 const lum = (h: string) => { const n = parseInt(h.slice(1, 7), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 const fails: string[] = []; let checked = 0;
@@ -261,79 +280,105 @@ for (const [name, th] of Object.entries(THEMES)) {
     if (best < 3) fails.push(`${name}: hint vs ${bgName} ${bg} = ${best.toFixed(2)}`);
   }
 }
-console.log(`checked ${checked} pairs (expected 15)`);
+const bandPx = ((HINT_EDGE_W - HINT_FILL_W) / 2) * (344 / 1000);
+if (bandPx < 2) fails.push(`edge band ${bandPx.toFixed(2)} px at 360 < 2`);
+console.log(`checked ${checked} pairs (expected 15), edge band ${bandPx.toFixed(2)} px`);
 if (checked !== 15 || fails.length) { console.error(fails.join('\n')); process.exit(1); }
 ```
 
-Run `node --experimental-strip-types apps/web/scripts/contrast.ts; echo EXIT=$?` → fails (no `hint` key yet → throws) — EXIT≠0.
-- [ ] **Step 2:** add `hint`, `dim` to `BoardTheme` and the three themes (table above); drop `highlight`/`target` uses in Board for hints (keep `highlight` for last-move marker). Re-run → `checked 15 pairs`, EXIT=0. Break-check: set wood `hint.edge` to `#d9b07a` → must fail naming `wood: hint vs field`; restore.
-- [ ] **Step 3: Board rendering** (`Board.tsx` checker loop and targets):
+`geometry.ts` gets `export const HINT_FILL_W = 5; export const HINT_EDGE_W = 17;` (band 6 units = 2.06 px). Before Step 2: `node --experimental-strip-types apps/web/scripts/contrast.ts; echo EXIT=$?` → non-zero (no `hint`).
+- [ ] **Step 2:** add `hint`, `dim` to `BoardTheme` and themes; re-run → `checked 15 pairs`, EXIT=0. Break-checks: wood `hint.edge = '#d9b07a'` → fails naming `wood: hint vs`; `HINT_EDGE_W = 9` → fails naming `edge band`; restore both.
+- [ ] **Step 3: stacks** (`geometry.ts`):
 
-```tsx
-// movable top checker: two-tone solid ring, no pulse
-{movable && !selected && (<>
-  <circle r={R + 3} fill="none" stroke={th.hint.edge} strokeWidth="7" />
-  <circle r={R + 3} fill="none" stroke={th.hint.fill} strokeWidth="4" />
-</>)}
-{selected && (<>
-  <circle r={R + 4} fill="none" stroke={th.hint.edge} strokeWidth="10" />
-  <circle r={R + 4} fill="none" stroke={th.hint.fill} strokeWidth="6" />
-</>)}
-// dimming: on the checker <g>, when p.hints && p.mover === c.color && p.movable.size > 0 && !(c.top && p.movable.has(c.loc))
-style={{ ..., opacity: dimmed ? th.dim : 1 }}
-// selected lift: translate(x, y - 6) when selected
+```ts
+export const STACK_H = 5 * 2 * R; // 290
+export function stackSpacing(n: number): number {
+  if (n <= 5) return R * 2;
+  return (STACK_H - R * 2) / (n - 1);
+}
 ```
 
-Targets: whole point `path` with `fill={th.hint.fill}` `opacity="0.28"` + `stroke={th.hint.edge}` `strokeWidth="2"`; ghost checker at the landing spot: `<circle r={R} fill={`url(#${uid}-ck-${p.mover === 0 ? 'white' : 'black'})`} opacity="0.45" />` + `<circle r={R} fill="none" stroke={th.hint.fill} strokeWidth="3" />`. Tray target: same two-tone rect. Remove `className="pulse"` from hint marks.
-- [ ] **Step 4:** typecheck + build → 0; live run at 360/768/1440 in all three themes: own turn after roll — name per theme which checkers carry the ring (count must equal `movable.size`, read via `document.querySelectorAll` on a `data-hint="movable"` attribute added to the ring group) and that targets show a ghost. Screenshots attached to the batch report.
-- [ ] Commit three files: `feat(web): two-tone move hints with per-theme contrast check`.
+Bar stacks (`barPos`, step 26) unchanged unless > 5 (then same cap). Check: `node --experimental-strip-types -e "import('./apps/web/src/components/geometry.ts').then(g=>{for(let n=1;n<=15;n++){const h=g.stackSpacing(n)*(n-1)+2*g.R; if(h>290.0001){console.error('n',n,'height',h);process.exit(1)}} console.log('stack heights ok 1..15')})"` → prints `stack heights ok 1..15`. Break: return old formula → fails naming `n 6`.
+
+In `Board.tsx`, a checker that is not `top` in a stack with `count > 5` renders only the outer disc (`<circle r={R} .../>`), no inner rings; the top checker renders full and, when `count > 5`, the count text at `fontSize="26"`.
+- [ ] **Step 4: hints** (`Board.tsx`):
+
+```tsx
+{movable && !selected && (
+  <g data-hint="movable">
+    <circle r={R + 4} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+    <circle r={R + 4} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+  </g>
+)}
+{selected && (
+  <g data-hint="selected">
+    <circle r={R + 5} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W + 4} />
+    <circle r={R + 5} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W + 4} />
+  </g>
+)}
+```
+
+Dimming on the checker `<g>`: `opacity: p.hints && p.mover === c.color && p.movable.size > 0 && !(c.top && p.movable.has(c.loc)) ? th.dim : 1`.
+Targets: `<g data-hint="target">` = point path with two-tone outline (`stroke={th.hint.edge} strokeWidth={HINT_EDGE_W}` under `stroke={th.hint.fill} strokeWidth={HINT_FILL_W}`, `fill="none"`) + ghost checker at the landing spot (`fill` = checker gradient, `opacity 0.45`, two-tone ring). Tray: `<g data-hint="target-off">` two-tone rect. Remove all `className="pulse"` from hint marks.
+- [ ] **Step 5: e2e selectors** — `playTurn` uses `[data-hint="target"]`, `[data-hint="target-off"]`, `[data-hint="movable"]` instead of `.pulse`. The pips-changed assert from T2 is the gate: with selectors broken it must fail (break-check: rename `data-hint="movable"` → fails with pip numbers).
+- [ ] **Step 6:** typecheck + build → 0. Live run 360/768/1440 × three themes, own turn after roll: print per theme `movable rings = N, expected = movable.size` (count `[data-hint="movable"]`), selected target count vs `dests.size`, a stack of ≥ 6 rendered height via `getBBox` ≤ 290. Screenshots to the batch report.
+- [ ] Commit five files: `feat(web): two-tone move hints, capped stacks with count`.
+- [ ] **Batch end:** e2e → EXIT=0.
 
 ### Task 4: Rejoin screen
 
-**Files:** `apps/web/src/screens/Room.tsx`.
-**Consumes:** `info().seatsOffline`, `info().offlineName` (Task 1), `T.rejoinAs`, `T.rejoin` (Task 0).
+**Files:** `apps/web/src/screens/Room.tsx`, `e2e/online.e2e.cjs`.
+**Consumes:** `info().seatsOffline`, `info().offlineName` (T1), `T.rejoinAs`, `T.rejoin`, `T.badPassword` (exists).
 
-- [ ] **Step 1:** extend `Info` with `seatsOffline?: number; offlineName?: string | null`. Compute:
+- [ ] **Step 1:**
 
 ```ts
+interface Info { exists: boolean; hasPassword?: boolean; seatsTaken?: number; seatsOffline?: number; offlineName?: string | null }
 const full = !hasToken && info?.seatsTaken === 2;
 const noSeat = full && !info?.seatsOffline;
 const rejoin = full && !!info?.seatsOffline;
 const ready = info?.exists && !noSeat && (hasToken || (!info.hasPassword && !rejoin) || password !== null);
+const helloName = useSettings((s) => s.name) || (rejoin && info?.offlineName) || T.you;
 ```
 
-- [ ] **Step 2:** render order: `noSeat` → existing "room full" screen (no password prompt). `rejoin && !ready` → form titled `{T.rejoinAs} {info.offlineName}` with the password field only when `info.hasPassword`; submit sets `password` to the input (or `''` for passwordless) → `ready` → controller connects → server reclaims.
-- [ ] **Step 3:** typecheck + build → 0. Live check (two browser contexts against `wrangler dev`): reproduce the original bug path — A+B in a password room, B closes; fresh context C opens the link → sees "Вернуться в игру как Bob", enters password → lands in the game as seat 1; A's bar shows Bob online. Second path: both online, fresh context → "Комната заполнена" immediately, no password prompt.
-- [ ] Commit: `feat(web): rejoin screen for an offline seat`.
+`RemoteController` gets `helloName` instead of `name`.
+- [ ] **Step 2: render** — `noSeat` → existing room-full screen (no password prompt). `rejoin && (!ready || fatal === 'bad_password')` → form: title `{T.rejoinAs} {info.offlineName}`, `T.badPassword` line when `fatal === 'bad_password'`, password input only if `info.hasPassword`, submit button `T.rejoin`; `onSubmit`: `setFatal(null); setPassword(info.hasPassword ? pwInput : '')`.
+- [ ] **Step 3: e2e** — after the online game section: password room A+B, B's context closed; fresh context C opens the link → expects text `Вернуться в игру как Борис`, enters a wrong password → `Неверный пароль`, then the right one → game screen (score header visible); A's opponent bar has no `не в сети` tag within 3 s. Then: both online, fresh context D → `Комната заполнена` with no password input on the page.
+- [ ] **Step 4:** typecheck + build → 0; e2e → EXIT=0 (batch end). Break-check: make `rejoin` always `false` → step 3 fails naming the missing text.
+- [ ] Commit two files: `feat(web): rejoin screen for an offline seat`.
 
 ### Task 5: Vertical board and compact phone chrome
 
 **Files:** `apps/web/src/components/geometry.ts`, `apps/web/src/components/Board.tsx`, `apps/web/src/screens/Game.tsx`, `apps/web/src/styles.css`.
+**Produces:** `geom(cross: 800 | 660)` in `geometry.ts` returning `{ VB_H, TOP, BOTTOM, MID_Y, POINT_LEN, checkerPos, offPos, barPos, locAt }`; `BoardProps.vertical: boolean`; `useVertical()` in `Game.tsx` = `matchMedia('(orientation: portrait) and (max-width: 767px)')` with a change listener.
 
-**Produces:** `BoardProps.vertical: boolean`; `useVertical()` hook in `Game.tsx` = `matchMedia('(orientation: portrait) and (max-width: 767px)')`.
+Mapping (clockwise rotation, cross axis H = 660): board `(x, y)` → screen `(H − y, x)`; SVG `transform="matrix(0 1 -1 0 660 0)"`, `viewBox="0 0 660 1000"`. Inverse: `x = Y, y = 660 − X`. Viewer's row (bottom, y = 636) → left column; home (slots 0-5, x 468-852) → lower-left; tray → bottom strip; bar → horizontal strip at screen y 408-468. Inverse mismatches over 1e5 random points: 0 (computed). Corner mapping may be replaced by the approved design.
 
-Mapping: transpose `(x, y) → (y, x)`, viewBox `0 0 800 1000`. Viewer's row (bottom, slots 0-11) becomes the right column, home (slots 0-5) bottom-right, opponent row left column, bar a horizontal strip at y≈408-468, tray a bottom strip. Transpose is self-inverse.
-
-- [ ] **Step 1:** `Board.tsx`: wrap everything after `<Defs>` in `<g transform={p.vertical ? 'matrix(0 1 1 0 0 0)' : undefined}>`; `viewBox={p.vertical ? `0 0 ${VB_H} ${VB_W}` : ...}`; `toSvg` when vertical:
+- [ ] **Step 1: geometry** — move `VB_H`-dependent constants into `geom(cross)`; horizontal callers use `geom(800)` (values identical to today: `TOP 24, BOTTOM 776, MID_Y 400, POINT_LEN 320`); vertical `geom(660)`: `TOP 24, BOTTOM 636, MID_Y 330, POINT_LEN 280`. Check: `STACK_H 290 < (BOTTOM − TOP)/2 = 306`. Point-number text y uses `g.TOP - 7` / `g.BOTTOM + 17`.
+- [ ] **Step 2: Board** — wrap everything after `<Defs>` in `<g transform={p.vertical ? 'matrix(0 1 -1 0 660 0)' : undefined}>`; viewBox per mode. `toSvg`:
 
 ```ts
-const sx = ((e.clientX - r.left) / r.width) * VB_H;  // screen x spans board y (0..800)
-const sy = ((e.clientY - r.top) / r.height) * VB_W;  // screen y spans board x (0..1000)
-return p.vertical ? { x: sy, y: sx } : { x: ((e.clientX - r.left) / r.width) * VB_W, y: ((e.clientY - r.top) / r.height) * VB_H };
+const X = ((e.clientX - r.left) / r.width) * (p.vertical ? 660 : VB_W);
+const Y = ((e.clientY - r.top) / r.height) * (p.vertical ? VB_W : 800);
+return p.vertical ? { x: Y, y: 660 - X } : { x: X, y: Y };
 ```
 
-Ghost drag coordinates come from `toSvg`, so they are already in board space. Every `<text>` (point numbers, stack counts) gets a counter transform: point numbers `transform={p.vertical ? `translate(${x},${y}) matrix(0 1 1 0 0 0) translate(${-x},${-y})` : undefined}`; stack count text inside the checker group `transform={p.vertical ? 'matrix(0 1 1 0 0 0)' : undefined}`. Drop shadow filter: `dx`/`dy` swapped by passing `vertical` into `Defs` (`dx={vertical ? 3 : 0} dy={vertical ? 0 : 3}` — inside the transposed group this renders as a downward shadow).
-- [ ] **Step 2:** `styles.css`: `.board-wrap.vertical { aspect-ratio: 800 / 1000; width: min(100%, calc((100dvh - 120px) * 0.8)); }`; dice: `.board-wrap.vertical .dice-tray { left: 50%; } .board-wrap.vertical .dice-tray.right { top: 66%; } .board-wrap.vertical .dice-tray.left { top: 21.6%; }` (left offsets map to top under transpose). `--die: 8cqw` in vertical.
-- [ ] **Step 3:** `Game.tsx` compact chrome when vertical: header = `←`, score, opponent name+clock in one row (`.pbar` hidden for the opponent, its clock moves into the header); bottom row = own name+clock+status+`⋯`; `⋯` toggles a sheet with the emoji bar and `⚑ Resign`; `.emoji-bar` and resign hidden from the main column when vertical.
-- [ ] **Step 4: measurement gate** (must name numbers): at 360×780 in the session browser, `document.querySelector('.board-svg').getBoundingClientRect().height / (innerHeight - safe areas)` printed per theme; must be ≥ 0.90. Print the value even when passing. Also at 768×1024 (portrait, ≥768 → horizontal board expected: assert `!document.querySelector('.board-wrap.vertical')`) and 1440×900.
-- [ ] **Step 5: input check:** at 360 width, tap a movable checker and its target by coordinates from the rendered ring/ghost `getBoundingClientRect()` → the move lands (pending board changes). Drag a checker → lands. If the transpose of pointer coords is wrong this fails on the first tap.
-- [ ] **Step 6:** typecheck + build → 0; e2e full run → exit 0 (read the node exit code, not a pipe's).
+Text upright: point numbers `transform={p.vertical ? `rotate(-90 ${x} ${y})` : undefined}`; stack count inside the checker group `transform={p.vertical ? 'rotate(-90)' : undefined}`. Shadow filter: `dx={p.vertical ? 3 : 0} dy={p.vertical ? 0 : 3}` — under `matrix(0 1 -1 0 660 0)` a local vector (3, 0) maps to screen (0, 3), i.e. down.
+- [ ] **Step 3: CSS** — `.board-wrap.vertical { aspect-ratio: 660 / 1000; width: min(100%, calc((100dvh - 120px) * 0.66)); --die: 9cqw; }`; dice/center/toast under rotation (board x → screen y, board y → screen x from the right): `.board-wrap.vertical .dice-tray, .board-wrap.vertical .center-actions, .board-wrap.vertical .toast { left: 50%; } .board-wrap.vertical .dice-tray.right { top: 66%; } .board-wrap.vertical .dice-tray.left { top: 21.6%; } .board-wrap.vertical .center-actions { top: 66%; }`. Modals are full-screen layers — unchanged.
+- [ ] **Step 4: chrome** (`Game.tsx`, vertical only): header row `← · score · opponent name + clock · 💬`; opponent `.pbar` not rendered; bottom row `own name + clock · status · ⋯ (T.more)`; `⋯` toggles a sheet with the emoji bar and `⚑ Resign`; `.emoji-bar`, `.controls` resign hidden in the main column. Undo-send and ×2 buttons stay visible in the bottom row.
+- [ ] **Step 5: measurement gate** — in the session browser print, per theme, at 360×780: `board.height/innerHeight` (≥ 0.65) and checker diameter `document.querySelector('g.ck circle').getBoundingClientRect().width` (≥ 30); at 768×1024 assert no `.board-wrap.vertical` (horizontal expected); at 1440×900 the same. Print values even when passing. Break-check: force `geom(800)` in vertical → ratio drops to ~0.55 and the gate fails naming the number.
+- [ ] **Step 6: input** — at 360: tap the centre of a `[data-hint="movable"]` ring's `getBoundingClientRect()`, then a `[data-hint="target"]` ghost → pending pip count changes; drag one checker to a target → lands. Rotate `toSvg` wrong on purpose (swap X/Y) → this check fails; restore.
+- [ ] **Step 7:** typecheck + build → 0; e2e (horizontal, desktop viewport) → 0; e2e phone shake scenario still → 0.
 - [ ] Commit four files: `feat(web): vertical board and compact chrome on portrait phones`.
 
 ---
 
-## Final verification (after Batch 4)
+## Final verification
 
-- `npm run typecheck && npm test` → 0; worker integration against `wrangler dev` → 0; e2e → 0.
-- Live run per spec checklist: 360/768/1440, three themes, own turn, opponent turn, roll, double countdown, undo window, rejoin both paths, console has no new errors.
-- Compare against the approved design screens at the same widths; name every mismatch.
+- `npm run typecheck && npm test; echo EXIT=$?` → 0; worker integration on `wrangler dev` → 0; e2e → 0 (exit code of `node`, not of a pipe).
+- Live run per spec checklist: 360/768/1440, three themes, own/opponent turn, roll, ×2 countdown, undo window, stack of 10, rejoin both paths, console without new errors.
+- Compare with the approved design screens at the same widths; name every mismatch.
+
+## Review log
+
+Round 1 (Opus, fresh context, 2026-11-15) — all accepted: P0 unreachable 90% height → cross axis 660 + reachable thresholds; P1 e2e selectors silently green → `data-hint` + throwing asserts; P1 batch-1 e2e vs worker edits → e2e at batch end, T1 on :8788; P2 codex without network → T1 to Sonnet; P2 undo after send → `sent` flag, one undo button; P2 auto-selected tap → condition dropped; P2 edge band too thin → width gate in the script; P2 rejoin form (`setFatal(null)`, name, e2e owner); P2 mirror vs rotation → rotation; P2 design step → pipeline position; P3 TS style, unused key, line refs, break-check by name, double-click race.
