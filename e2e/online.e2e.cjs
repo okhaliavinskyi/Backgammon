@@ -408,7 +408,7 @@ async function captureThemes() {
   const A = await mk(b, 'Алиса');
   const B = await mk(b, 'Борис');
   await A.goto(BASE + '/create');
-  await A.locator('.seg button:has-text("Короткие")').click();
+  await A.locator('.variant-card:has-text("Короткие")').click();
   await A.locator('input[type=password]').fill('42');
   await A.locator('button:has-text("Создать")').last().click();
   await A.waitForURL(/\/r\//);

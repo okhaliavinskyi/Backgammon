@@ -92,17 +92,18 @@ export function Home({ nav }: { nav: Nav }) {
 
 function VariantPicker({ value, onChange }: { value: Variant; onChange: (v: Variant) => void }) {
   const T = useT();
+  const opts: { v: Variant; label: string; sub: string }[] = [{ v: 'long', label: T.long, sub: T.longDesc }, { v: 'short', label: T.short, sub: T.shortDesc }];
   return (
-    <Seg
-      value={value}
-      onChange={onChange}
-      options={[
-        { v: 'long', label: T.long, sub: T.longDesc },
-        { v: 'short', label: T.short, sub: T.shortDesc },
-      ]}
-    />
+    <div className="variant-cards" role="radiogroup" aria-label={T.variant}>
+      {opts.map((o) => (
+        <button key={o.v} role="radio" aria-checked={o.v === value} className={'variant-card' + (o.v === value ? ' on' : '')} onClick={() => onChange(o.v)}>
+          <b>{o.label}</b><span>{o.sub}</span>
+        </button>
+      ))}
+    </div>
   );
 }
+
 
 export function GameSetup({ nav, mode }: { nav: Nav; mode: 'ai' | 'local' }) {
   const T = useT();
@@ -111,46 +112,29 @@ export function GameSetup({ nav, mode }: { nav: Nav; mode: 'ai' | 'local' }) {
   const [cube, setCube] = useState(true);
   const [level, setLevel] = useState<AiLevel>('amateur');
   return (
-    <div className="screen form">
-      <PageHead title={mode === 'ai' ? T.playAi : T.playLocal} onBack={() => nav('/')} />
-      <div className="card">
-        <NameField />
-      </div>
-      <div className="card">
-      <label className="field">
-        <span>{T.variant}</span>
-        <VariantPicker value={variant} onChange={setVariant} />
-      </label>
-      {mode === 'ai' && (
-        <label className="field">
-          <span>{T.aiLevel}</span>
-          <Seg
-            value={level}
-            onChange={setLevel}
-            options={[
-              { v: 'beginner', label: T.beginner },
-              { v: 'amateur', label: T.amateur },
-              { v: 'master', label: T.master },
-            ]}
-          />
-        </label>
-      )}
-      <label className="field">
-        <span>{T.matchLength}</span>
-        <Seg value={len} onChange={setLen} options={MATCH_LENGTHS.map((v) => ({ v, label: String(v) }))} />
-      </label>
-      </div>
-      {variant === 'short' && (
-        <div className="card toggles">
-          <label className="check">
-            <input type="checkbox" checked={cube} onChange={(e) => setCube(e.target.checked)} /> {T.cube}
-          </label>
-        </div>
-      )}
-      <button className="btn primary big" onClick={() => nav(`/play?mode=${mode}&variant=${variant}&len=${len}&cube=${cube ? 1 : 0}&level=${level}`)}>
-        {T.start}
-      </button>
-    </div>
+<div className="screen form setup2">
+  <PageHead title={mode === 'ai' ? T.playAi : T.playLocal} onBack={() => nav('/')} />
+  <NameChip />
+  <div className="eyebrow">{T.variant}</div>
+  <VariantPicker value={variant} onChange={setVariant} />
+  <label className={'check switch-row' + (variant === 'short' ? '' : ' off')}>
+    <span className="grow">{T.cube}{variant !== 'short' && <small> · {T.cubeOnlyShort}</small>}</span>
+    <input type="checkbox" role="switch" checked={variant === 'short' && cube} disabled={variant !== 'short'} onChange={(e) => setCube(e.target.checked)} />
+  </label>
+  {mode === 'ai' && (<>
+    <div className="eyebrow">{T.aiLevel}</div>
+    <Seg value={level} onChange={setLevel} options={[{ v: 'beginner', label: T.beginner }, { v: 'amateur', label: T.amateur }, { v: 'master', label: T.master }]} />
+    <p className="muted hint">{T.botLevelHint}</p>
+  </>)}
+  <div className="eyebrow">{T.matchLength}</div>
+  <Seg value={len} onChange={setLen} options={MATCH_LENGTHS.map((v) => ({ v, label: String(v) }))} />
+  <div className="bottom-bar">
+    <button className="btn primary big" onClick={() => nav(`/play?mode=${mode}&variant=${variant}&len=${len}&cube=${variant === 'short' && cube ? 1 : 0}&level=${level}`)}>
+      {T.startWith} · {variant === 'long' ? T.long : T.short} · {T.matchLength} {len}
+    </button>
+  </div>
+</div>
+
   );
 }
 
@@ -255,10 +239,10 @@ export function CreateRoom({ nav }: { nav: Nav }) {
         <NameField />
       </div>
       <div className="card">
-      <label className="field">
+      <div className="field">
         <span>{T.variant}</span>
         <VariantPicker value={s.variant} onChange={(variant) => up({ variant })} />
-      </label>
+      </div>
       <label className="field">
         <span>{T.matchLength}</span>
         <Seg value={s.matchLength} onChange={(matchLength) => up({ matchLength })} options={MATCH_LENGTHS.map((v) => ({ v, label: String(v) }))} />
