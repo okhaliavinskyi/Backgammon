@@ -447,12 +447,12 @@ async function captureThemes() {
   await A.screenshot({ path: OUT + '/12-online-A.png' });
   await B.screenshot({ path: OUT + '/13-online-B.png' });
   // chat & emoji
-  await A.locator('button[aria-label="Чат"]').click();
+  if (await A.locator('button[aria-label="Чат"]').count()) await A.locator('button[aria-label="Чат"]').click(); // wide layout: chat panel always open
   await A.locator('.chat-form input').fill('Привет, удачи!');
   await A.locator('.chat-form button').click();
   await A.locator('.emoji-bar button').nth(5).click();
   await B.waitForSelector('.float-emoji');
-  await B.locator('button[aria-label="Чат"]').click();
+  if (await B.locator('button[aria-label="Чат"]').count()) await B.locator('button[aria-label="Чат"]').click(); // wide layout: chat panel always open
   await B.waitForSelector('text=Привет, удачи!');
   await B.screenshot({ path: OUT + '/14-chat.png' });
   const pipsA = await A.locator('.pmeta').allTextContents();
