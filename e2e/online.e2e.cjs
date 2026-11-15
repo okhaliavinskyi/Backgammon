@@ -312,6 +312,8 @@ async function verifyGhosts(b) {
  await p.setContent('<div id="root" style="width:1000px;height:800px"></div>');await p.addScriptTag({content:code});
  await p.locator('[data-hint="target"] circle').first().waitFor();
  if((await p.locator('svg').getAttribute('viewBox'))!=='0 0 876 800')throw Error('empty tray reserved space');
+ if(await p.locator('[data-selected-mark]').count()!==1)throw Error('selected checker badge missing');
+ if((await p.locator('[data-point-seat="9"]').getAttribute('stroke'))!=='url(#bwood-frame)')throw Error('seat does not use frame material');
  const cy=await p.locator('[data-hint="target"] circle').first().getAttribute('cy');if(cy!=='53')throw Error('hit ghost y '+cy+' expected 53');
  await p.evaluate(()=>window.reviewRender('stack'));await p.locator('[data-target="s17"]').waitFor();
  const layer=await p.locator('[data-target="s17"]').evaluate(g=>{const cs=[...document.querySelectorAll('g.ck')];return {y:g.querySelector('circle').getAttribute('cy'),above:!!(cs.at(-1).compareDocumentPosition(g)&Node.DOCUMENT_POSITION_FOLLOWING)}});

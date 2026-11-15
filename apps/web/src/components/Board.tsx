@@ -63,7 +63,7 @@ const Defs = ({ th, id }: { th: BoardTheme; id: string }) => (
       <feDropShadow dx="0" dy="2" stdDeviation="1.8" floodColor="#000" floodOpacity="0.25" />
     </filter>
     <filter id={`${id}-lift`} x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#000" floodOpacity="0.28" />
+      <feDropShadow dx="0" dy="7" stdDeviation="4" floodColor="#000" floodOpacity="0.4" />
     </filter>
     <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="4" result="b" />
@@ -118,7 +118,13 @@ const StaticBoard = memo(function StaticBoard({ th, id, g, showTray }: { th: Boa
       {Array.from({ length: 24 }, (_, s) => (
         <path key={s} d={pointPath(s, g)} fill={s % 2 === 0 ? th.pointA : th.pointB} stroke={th.pointStroke} strokeWidth="1" />
       ))}
-      {Array.from({ length: 24 }, (_, slot) => <circle key={'seat-' + slot} data-point-seat={slot} cx={slotX(slot)} cy={isTop(slot) ? TOP + R : BOTTOM - R} r={R + 1} fill="none" stroke={th.inlay} strokeOpacity="0.5" strokeWidth="1.5" />)}
+      {Array.from({ length: 24 }, (_, slot) => {
+        const cy = isTop(slot) ? TOP + R : BOTTOM - R;
+        return <g key={'seat-' + slot} pointerEvents="none">
+          <circle data-point-seat={slot} cx={slotX(slot)} cy={cy} r={R} fill="none" stroke={`url(#${id}-frame)`} strokeWidth="6" />
+          {th.fieldTexture === 'wood' && <circle cx={slotX(slot)} cy={cy} r={R} fill="none" stroke="#000" strokeWidth="6" filter={`url(#${id}-grain)`} opacity="0.55" />}
+        </g>;
+      })}
       <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill={th.bar} />
       {th.fieldTexture === 'wood' && <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill="#000" filter={`url(#${id}-grain)`} opacity="0.5" />}
       <line x1={BAR_X + BAR_W / 2} y1={TOP + 8} x2={BAR_X + BAR_W / 2} y2={BOTTOM - 8} stroke={th.inlay} strokeOpacity="0.4" strokeDasharray="2 10" />
@@ -284,6 +290,7 @@ export function BoardView(p: BoardProps) {
         const x = isGhost ? ghost!.x : c.x;
         const y = isGhost ? ghost!.y : c.y;
         const movable = p.hints && c.top && c.color === p.mover && p.movable.has(c.loc);
+        const selectedInk = c.color === 0 || p.theme === 'minimal' ? th.hint.edge : th.hint.fill;
         const selected = p.hints && c.top && c.color === p.mover && p.selected === c.loc;
         return (
           <g
@@ -305,12 +312,16 @@ export function BoardView(p: BoardProps) {
                 <circle r={R - 15} fill="none" stroke={col.ring} strokeWidth="1.2" opacity="0.55" /></>}
                 {(movable || selected) && (
                   <g data-hint={selected ? 'selected' : 'movable'}>
-                    <circle r={R - 3} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 2 : 0)} />
-                    <circle r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 2 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 6 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 6 : 0)} />
+                    {selected && <>
+                      <circle data-selected-mark r={R - 11} fill={col.base} stroke={th.hint.fill} strokeWidth="1.5" />
+                      {c.count <= 5 && <path d="M -8 0 L -2 6 L 9 -7" fill="none" stroke={selectedInk} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
+                    </>}
                   </g>
                 )}
                 {c.top && c.count > 5 && (
-                  <text y="0" dominantBaseline="central" fontSize="22" fontWeight="600" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
+                  <text y="0" dominantBaseline="central" fontSize="22" fontWeight="600" textAnchor="middle" fill={selected ? selectedInk : c.color === 0 ? '#3a2a14' : '#fff'}>
                     {c.count}
                   </text>
                 )}
