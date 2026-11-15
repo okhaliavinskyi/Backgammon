@@ -336,6 +336,374 @@ input:focus {
   }
 }
 
+/* ───────── non-game screens: polish (menus, lobby, room, settings, result) ───────── */
+:root {
+  --card: rgba(255, 244, 225, 0.05);
+  --card-b: rgba(255, 244, 225, 0.11);
+  --field: rgba(0, 0, 0, 0.28);
+  --accent-ink: #1b0f05;
+}
+.btn:focus-visible,
+.back:focus-visible,
+.link:focus-visible,
+.room-card:focus-visible,
+.seg button:focus-visible,
+.check input:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn {
+  font-weight: 550;
+  min-height: 44px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+.btn.primary {
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 28%, transparent), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+}
+.btn.primary:hover {
+  filter: brightness(1.06);
+}
+.btn.big {
+  min-height: 54px;
+  border-radius: 16px;
+}
+.screen {
+  max-width: 600px;
+  padding: max(20px, env(safe-area-inset-top)) 16px max(40px, env(safe-area-inset-bottom));
+}
+.form {
+  gap: 0.85rem;
+}
+.page-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+.page-head h2 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: 0.01em;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: 36px;
+  padding: 0.2em 0.85em 0.2em 0.65em;
+  margin-left: -0.3em;
+  border: 1px solid var(--card-b);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.92rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.back:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--card-b);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.card.toggles {
+  gap: 0;
+  padding: 0.2rem 1rem;
+}
+.card.toggles .check {
+  justify-content: space-between;
+  flex-direction: row-reverse;
+  min-height: 48px;
+  padding: 0.25rem 0;
+}
+.card.toggles .check + .check {
+  border-top: 1px solid var(--card-b);
+}
+.field > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+input:not([type='checkbox']) {
+  background: var(--field);
+  border-radius: 12px;
+  min-height: 46px;
+  font-size: 1rem;
+}
+.check input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(255, 244, 225, 0.16);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin: 0;
+}
+.check input::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  transition: transform 0.2s;
+}
+.check input:checked {
+  background: var(--accent);
+}
+.check input:checked::after {
+  transform: translateX(18px);
+}
+.seg {
+  background: var(--field);
+  border-radius: 14px;
+}
+.seg button {
+  min-height: 44px;
+  justify-content: center;
+  border-radius: 11px;
+  transition: background 0.15s;
+}
+.seg button:not(.on):hover {
+  background: rgba(255, 244, 225, 0.08);
+}
+.seg button.on {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.join-row {
+  flex-wrap: nowrap;
+}
+.join-row .btn {
+  min-height: 46px;
+}
+.lobby-head {
+  margin-top: 0.8rem;
+}
+.lobby-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.room-card {
+  gap: 0.75rem;
+  min-height: 64px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  transition: border-color 0.15s, transform 0.08s, background 0.15s;
+  color: inherit;
+  font: inherit;
+}
+.room-card:hover {
+  background: rgba(255, 244, 225, 0.08);
+}
+.room-card:active {
+  transform: scale(0.99);
+}
+.room-card > div {
+  min-width: 0;
+  flex: 1;
+}
+.room-card .code {
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.3em 0.6em;
+  border-radius: 8px;
+  background: var(--field);
+}
+.chev {
+  color: var(--muted);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.empty {
+  text-align: center;
+  padding: 1.6rem 1rem;
+  border: 1px dashed var(--card-b);
+  border-radius: 16px;
+}
+.empty > span,
+.empty-ico {
+  font-size: 2.2rem;
+  opacity: 0.75;
+}
+.empty p {
+  margin: 0.3em 0 0;
+}
+/* home */
+.home {
+  padding-top: max(7vh, 24px);
+}
+.home .logo {
+  width: 104px;
+  height: 104px;
+}
+.home h1 {
+  margin-top: 0.5rem;
+  font-size: clamp(2.2rem, 7vw, 3rem);
+}
+.menu {
+  max-width: 380px;
+  gap: 0.75rem;
+  width: 100%;
+}
+.menu .btn.big {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.9rem;
+  text-align: left;
+  padding-left: 0.9em;
+}
+.menu .btn.big .ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 244, 225, 0.1);
+  font-size: 1.15rem;
+}
+.menu .btn.primary .ico,
+.menu .btn.gold .ico {
+  background: rgba(27, 15, 5, 0.16);
+}
+.menu .btn.subtle {
+  justify-content: center;
+  box-shadow: none;
+  min-height: 44px;
+}
+.menu .btn.subtle .ico {
+  margin-right: 0.35em;
+}
+.rules {
+  max-width: 380px;
+  margin: 0 auto;
+}
+.rules summary {
+  min-height: 28px;
+}
+.rules h3 {
+  font-size: 1rem;
+  margin: 0.8em 0 0.2em;
+}
+.rules p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+/* room */
+.pw-form {
+  gap: 1rem;
+}
+.screen.center {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+.waiting .share {
+  border: 1px solid var(--card-b);
+  background: var(--card);
+  width: min(100%, 440px);
+  justify-content: space-between;
+}
+.waiting .share code {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: 0.85rem;
+}
+.big-code {
+  display: flex;
+  gap: 6px;
+  margin: 0.4rem 0;
+}
+.big-code span {
+  width: 2.1ch;
+  padding: 0.25em 0;
+  text-align: center;
+  border-radius: 10px;
+  background: var(--field);
+  border: 1px solid var(--card-b);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+/* result / cube modal */
+.modal {
+  padding: 1.5rem 1.6rem 1.4rem;
+  min-width: min(300px, 86%);
+  border-radius: 22px;
+}
+.modal h2 {
+  font-size: 1.5rem;
+  margin: 0 0 0.3rem;
+}
+.modal p {
+  margin: 0.3em 0;
+}
+.modal .row,
+.modal > .btn {
+  margin-top: 0.9rem;
+}
+.modal .btn {
+  min-height: 44px;
+}
+.modal.result.win {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.res-score {
+  font-size: 2.6rem;
+  line-height: 1.1;
+}
+.res-kind {
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+/* in-game settings dialog uses the same cards */
+.game-settings .screen {
+  padding: 16px 14px 20px;
+}
+.game-settings .card {
+  padding: 0.8rem;
+}
+.game-settings .card.toggles {
+  padding: 0.1rem 0.8rem;
+}
+.game-settings .page-head h2 {
+  font-size: 1.4rem;
+}
+@media (min-width: 768px) {
+  .screen.form {
+    padding-top: 40px;
+  }
+  .home {
+    padding-top: 9vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .room-card,
+  .check input,
+  .check input::after {
+    transition: none;
+  }
+}
+
 /* ───────── game ───────── */
 .game {
   height: 100dvh;

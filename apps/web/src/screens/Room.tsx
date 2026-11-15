@@ -4,7 +4,7 @@ import { useGame } from '../controllers/store';
 import { useT } from '../lib/i18n';
 import { useSettings } from '../lib/settings';
 import { GameScreen } from './Game';
-import type { Nav } from './Menus';
+import { PageHead, type Nav } from './Menus';
 
 interface Info {
   exists: boolean;
@@ -63,6 +63,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   if (!info.exists || noSeat || fatal === 'room_full' || fatal === 'room_expired' || fatal === 'room_gone') {
     return (
       <div className="screen center">
+        <div className="empty-ico" aria-hidden>🎲</div>
         <p>{noSeat || fatal === 'room_full' ? T.roomFull : T.roomNotFound}</p>
         <button className="btn" onClick={() => nav('/online')}>
           ← {T.back}
@@ -72,10 +73,9 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   }
   if (rejoin && (!ready || fatal === 'bad_password')) {
     return <div className="screen form">
-      <button className="link" onClick={() => nav('/online')}>← {T.back}</button>
-      <h2>{T.rejoinAs} {info.offlineName}</h2>
+      <PageHead title={<>{T.rejoinAs} {info.offlineName}</>} onBack={() => nav('/online')} />
       {fatal === 'bad_password' && <p className="error">{T.badPassword}</p>}
-      <form onSubmit={(e) => { e.preventDefault(); localStorage.setItem('nardy.name.' + id, helloName); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
+      <form className="card pw-form" onSubmit={(e) => { e.preventDefault(); localStorage.setItem('nardy.name.' + id, helloName); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
         {info.hasPassword && <label className="field">
           <span>{T.password}</span>
           <input type="password" autoFocus value={pwInput} onChange={(e) => setPwInput(e.target.value)} />
@@ -87,12 +87,10 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   if (!ready || fatal === 'bad_password') {
     return (
       <div className="screen form">
-        <button className="link" onClick={() => nav('/online')}>
-          ← {T.back}
-        </button>
-        <h2>🔒 {T.enterPassword}</h2>
+        <PageHead title={<>🔒 {T.enterPassword}</>} onBack={() => nav('/online')} />
         {fatal === 'bad_password' && <p className="error">{T.badPassword}</p>}
         <form
+          className="card pw-form"
           onSubmit={(e) => {
             e.preventDefault();
             setFatal(null);
@@ -134,7 +132,11 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
             {copied ? T.copied : T.copy}
           </button>
         </div>
-        <p className="code big-code">{id}</p>
+        <p className="code big-code" aria-label={id}>
+          {[...id].map((ch, i) => (
+            <span key={i}>{ch}</span>
+          ))}
+        </p>
         {room?.hasPassword && <p className="muted">🔒 {T.locked}</p>}
         <button className="link" onClick={() => nav('/online')}>
           ← {T.back}

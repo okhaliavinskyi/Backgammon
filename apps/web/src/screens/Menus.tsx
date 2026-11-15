@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BANKS, LobbyEntry, MATCH_LENGTHS, MOVE_TIMERS, RoomSettings, DEFAULT_SETTINGS, type AiLevel, type Variant } from '@nardy/core';
 import { useT } from '../lib/i18n';
 import { Theme, useSettings, Speed } from '../lib/settings';
@@ -19,6 +19,18 @@ function Seg<T extends string | number | boolean>({ value, options, onChange }: 
         </button>
       ))}
     </div>
+  );
+}
+
+export function PageHead({ title, onBack }: { title: ReactNode; onBack: () => void }) {
+  const T = useT();
+  return (
+    <header className="page-head">
+      <button className="back" onClick={onBack}>
+        <span aria-hidden>←</span> {T.back}
+      </button>
+      <h2>{title}</h2>
+    </header>
   );
 }
 
@@ -48,16 +60,16 @@ export function Home({ nav }: { nav: Nav }) {
           </button>
         )}
         <button className="btn primary big" onClick={() => (unlockAudio(), nav('/online'))}>
-          🌐 {T.playOnline}
+          <span className="ico" aria-hidden>🌐</span> {T.playOnline}
         </button>
         <button className="btn big" onClick={() => (unlockAudio(), nav('/ai'))}>
-          🤖 {T.playAi}
+          <span className="ico" aria-hidden>🤖</span> {T.playAi}
         </button>
         <button className="btn big" onClick={() => (unlockAudio(), nav('/local'))}>
-          👥 {T.playLocal}
+          <span className="ico" aria-hidden>👥</span> {T.playLocal}
         </button>
         <button className="btn subtle" onClick={() => nav('/settings')}>
-          ⚙ {T.settings}
+          <span className="ico" aria-hidden>⚙</span> {T.settings}
         </button>
       </div>
       <details className="rules">
@@ -93,11 +105,11 @@ export function GameSetup({ nav, mode }: { nav: Nav; mode: 'ai' | 'local' }) {
   const [level, setLevel] = useState<AiLevel>('amateur');
   return (
     <div className="screen form">
-      <button className="link" onClick={() => nav('/')}>
-        ← {T.back}
-      </button>
-      <h2>{mode === 'ai' ? T.playAi : T.playLocal}</h2>
-      <NameField />
+      <PageHead title={mode === 'ai' ? T.playAi : T.playLocal} onBack={() => nav('/')} />
+      <div className="card">
+        <NameField />
+      </div>
+      <div className="card">
       <label className="field">
         <span>{T.variant}</span>
         <VariantPicker value={variant} onChange={setVariant} />
@@ -120,10 +132,13 @@ export function GameSetup({ nav, mode }: { nav: Nav; mode: 'ai' | 'local' }) {
         <span>{T.matchLength}</span>
         <Seg value={len} onChange={setLen} options={MATCH_LENGTHS.map((v) => ({ v, label: String(v) }))} />
       </label>
+      </div>
       {variant === 'short' && (
-        <label className="check">
-          <input type="checkbox" checked={cube} onChange={(e) => setCube(e.target.checked)} /> {T.cube}
-        </label>
+        <div className="card toggles">
+          <label className="check">
+            <input type="checkbox" checked={cube} onChange={(e) => setCube(e.target.checked)} /> {T.cube}
+          </label>
+        </div>
       )}
       <button className="btn primary big" onClick={() => nav(`/play?mode=${mode}&variant=${variant}&len=${len}&cube=${cube ? 1 : 0}&level=${level}`)}>
         {T.start}
@@ -154,18 +169,15 @@ export function Online({ nav }: { nav: Nav }) {
   };
   return (
     <div className="screen form">
-      <button className="link" onClick={() => nav('/')}>
-        ← {T.back}
-      </button>
-      <h2>{T.playOnline}</h2>
-      <NameField />
-      <div className="row">
-        <button className="btn primary big grow" onClick={() => nav('/create')}>
-          ＋ {T.createRoom}
-        </button>
+      <PageHead title={T.playOnline} onBack={() => nav('/')} />
+      <div className="card">
+        <NameField />
       </div>
+      <button className="btn primary big" onClick={() => nav('/create')}>
+        ＋ {T.createRoom}
+      </button>
       <form
-        className="row"
+        className="row join-row"
         onSubmit={(e) => {
           e.preventDefault();
           const c = code.trim().toUpperCase();
@@ -183,7 +195,12 @@ export function Online({ nav }: { nav: Nav }) {
       </div>
       <div className="lobby">
         {rooms === null && <p className="muted">…</p>}
-        {rooms?.length === 0 && <p className="muted">{T.noRooms}</p>}
+        {rooms?.length === 0 && (
+          <div className="empty">
+            <span aria-hidden>🎲</span>
+            <p className="muted">{T.noRooms}</p>
+          </div>
+        )}
         {rooms?.map((r) => (
           <button key={r.id} className="room-card" onClick={() => nav('/r/' + r.id)}>
             <div>
@@ -194,6 +211,7 @@ export function Online({ nav }: { nav: Nav }) {
               </div>
             </div>
             <span className="code">{r.id}</span>
+            <span className="chev" aria-hidden>›</span>
           </button>
         ))}
       </div>
@@ -225,11 +243,11 @@ export function CreateRoom({ nav }: { nav: Nav }) {
   };
   return (
     <div className="screen form">
-      <button className="link" onClick={() => nav('/online')}>
-        ← {T.back}
-      </button>
-      <h2>{T.createRoom}</h2>
-      <NameField />
+      <PageHead title={T.createRoom} onBack={() => nav('/online')} />
+      <div className="card">
+        <NameField />
+      </div>
+      <div className="card">
       <label className="field">
         <span>{T.variant}</span>
         <VariantPicker value={s.variant} onChange={(variant) => up({ variant })} />
@@ -246,6 +264,8 @@ export function CreateRoom({ nav }: { nav: Nav }) {
         <span>{T.bank}</span>
         <Seg value={s.bank} onChange={(bank) => up({ bank })} options={BANKS.map((v) => ({ v, label: v ? `${v / 60}${T.min}` : T.off }))} />
       </label>
+      </div>
+      <div className="card toggles">
       {s.variant === 'short' && (
         <label className="check">
           <input type="checkbox" checked={s.cube} onChange={(e) => up({ cube: e.target.checked })} /> {T.cube}
@@ -254,10 +274,13 @@ export function CreateRoom({ nav }: { nav: Nav }) {
       <label className="check">
         <input type="checkbox" checked={s.isPublic} onChange={(e) => up({ isPublic: e.target.checked })} /> {T.publicRoom}
       </label>
+      </div>
+      <div className="card">
       <label className="field">
         <span>{T.passwordOptional}</span>
         <input type="password" value={password} maxLength={64} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
       </label>
+      </div>
       {err && <p className="error">{err}</p>}
       <button className="btn primary big" disabled={busy} onClick={create}>
         {T.create}
@@ -272,10 +295,8 @@ export function SettingsScreen({ nav }: { nav: Nav }) {
   const [motion, setMotion] = useState<boolean | null>(null);
   return (
     <div className="screen form">
-      <button className="link" onClick={() => nav('/')}>
-        ← {T.back}
-      </button>
-      <h2>{T.settings}</h2>
+      <PageHead title={T.settings} onBack={() => nav('/')} />
+      <div className="card">
       <NameField />
       <label className="field">
         <span>{T.language}</span>
@@ -306,6 +327,8 @@ export function SettingsScreen({ nav }: { nav: Nav }) {
           ]}
         />
       </label>
+      </div>
+      <div className="card toggles">
       {(
         [
           ['sound', T.sound],
@@ -320,6 +343,7 @@ export function SettingsScreen({ nav }: { nav: Nav }) {
           <input type="checkbox" checked={st[k]} onChange={(e) => st.set({ [k]: e.target.checked })} /> {label}
         </label>
       ))}
+      </div>
       {motionSupported() && needsPermission() && (
         <button className="btn" onClick={async () => setMotion(await requestMotionPermission())}>
           📳 {T.enableShake} {motion === true ? '✓' : motion === false ? '✕' : ''}
