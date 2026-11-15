@@ -32,14 +32,21 @@ export const useSettings = create<Settings>()(
       theme: 'wood',
       sound: true,
       speed: 'normal',
-      autoRoll: false,
-      autoConfirm: false,
+      autoRoll: true,
+      autoConfirm: true,
       hints: true,
       shake: true,
       vibration: true,
       set: (patch) => set(patch),
     }),
-    { name: 'nardy.settings' },
+    {
+      name: 'nardy.settings',
+      version: 1,
+      migrate: (persisted, version) => {
+        const s = (persisted ?? {}) as Partial<Settings>;
+        return (version < 1 ? { ...s, autoRoll: true, autoConfirm: true } : s) as Settings;
+      },
+    },
   ),
 );
 

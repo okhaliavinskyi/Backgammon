@@ -142,7 +142,12 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   const mover = m.phase === 'move' ? m.turn : null;
   const legal = useMemo(() => (pending ? legalNextSteps(pending.ts, memoRef.current) : []), [pending]);
-  const canInteract = !!pending && !animating && !busy;
+  const [sent, setSent] = useState(false);
+  const [doubled, setDoubled] = useState(false);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => { setSent(false); setDoubled(false); if (g.error) setPaused(true); }, [m, g.error, g.conn]);
+  useEffect(() => setPaused(false), [m.seq, m.gameNo]);
+  const canInteract = !!pending && !animating && !busy && !sent;
   const movable = useMemo(() => {
     const s = new Set<Loc>();
     if (!canInteract || mover === null) return s;
@@ -170,18 +175,22 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   const turnDone = !!pending && legal.length === 0;
 
+  const UNDO_MS = 1200;
+  const [sendAt, setSendAt] = useState<number | null>(null);
   const submit = useCallback(() => {
-    if (!pending) return;
+    if (!pending || sent) return;
+    setSent(true);
+    setSendAt(null);
+    useGame.setState({ error: null });
     submittedSeq.current = pending.seq;
     ctrl.move(pending.chains.flat());
-  }, [pending, ctrl]);
-
+  }, [pending, ctrl, sent]);
   useEffect(() => {
-    if (turnDone && pending && pending.chains.length > 0 && st.autoConfirm) {
-      const id = setTimeout(submit, mMs + 200);
-      return () => clearTimeout(id);
-    }
-  }, [turnDone, pending, st.autoConfirm, submit, mMs]);
+    if (sent || paused || !(turnDone && pending && pending.chains.length > 0 && st.autoConfirm && !busy)) { setSendAt(null); return; }
+    setSendAt(Date.now() + UNDO_MS);
+    const id = setTimeout(submit, UNDO_MS);
+    return () => clearTimeout(id);
+  }, [turnDone, pending, st.autoConfirm, submit, busy, sent, paused]);
 
   const playChain = (steps: Step[]) => {
     if (!pending) return;
@@ -217,19 +226,19 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     ctrl.roll();
   }, [ctrl]);
 
+  const DOUBLE_MS = 2000;
   useEffect(() => {
-    if (rollActor && st.autoRoll && !mayDouble) {
-      const id = setTimeout(doRoll, 450);
-      return () => clearTimeout(id);
-    }
-  }, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq]);
+    if (!rollActor || !st.autoRoll || doubled) return;
+    const id = setTimeout(doRoll, mayDouble ? DOUBLE_MS : 450);
+    return () => clearTimeout(id);
+  }, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq, doubled]);
 
   const [shaking, setShaking] = useState(false);
   const [impulse, setImpulse] = useState(0);
   const [motionOk, setMotionOk] = useState(!needsPermission());
   const shakeEnabled = st.shake && motionSupported();
   useEffect(() => {
-    if (!rollActor || !shakeEnabled || !motionOk) return;
+    if (!rollActor || st.autoRoll || !shakeEnabled || !motionOk) return;
     return listenShake({
       onShakeStart: () => setShaking(true),
       onImpulse: (s) => {
@@ -242,7 +251,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         doRoll();
       },
     });
-  }, [rollActor, shakeEnabled, motionOk, doRoll]);
+  }, [rollActor, st.autoRoll, shakeEnabled, motionOk, doRoll]);
 
   // Your-turn chime in online games.
   const me = viewer;
@@ -265,9 +274,13 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   // ───────── board events ─────────
   const onLocClick = (loc: Loc) => {
     unlockAudio();
-    if (rollActor && !mayDouble) return doRoll();
+    if (rollActor && !mayDouble && !st.autoRoll) return doRoll();
     if (!canInteract) return;
     if (selected && dests.has(loc)) return playChain(dests.get(loc)!);
+    if (movable.has(loc) && pending && mover !== null) {
+      const ds = destinationsFrom(pending.ts, locToPos(loc, mover), memoRef.current);
+      if (ds.length === 1) return playChain(ds[0].steps);
+    }
     if (movable.has(loc)) return setSelected(selected === loc ? null : loc);
     setSelected(null);
   };
@@ -379,7 +392,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {p?.isAi && g.aiLevel && <span className="tag">{T[g.aiLevel]}</span>}
             {p && !p.connected && <span className="tag warn">{T.offline}</span>}
           </div>
-          <div className="pmeta">
+          <div className="pmeta" data-pips={c === viewer ? 'me' : 'opp'}>
             {pipCount(board, c)} {T.pips} · {board.off[c]}/15
           </div>
         </div>
@@ -463,16 +476,17 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         {/* roll prompt */}
         {rollActor && !shaking && (
           <div className="center-actions">
-            <button className="btn primary big" onClick={doRoll}>
+            {!st.autoRoll && <button className="btn primary big" onClick={doRoll}>
               🎲 {T.roll}
-            </button>
-            {mayDouble && (
-              <button className="btn gold" onClick={() => ctrl.double()}>
+            </button>}
+            {mayDouble && !doubled && (
+              <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
                 ×2 {T.double}
+                {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
               </button>
             )}
-            {shakeEnabled && motionOk && <div className="hint">{T.shakeOrTap}</div>}
-            {shakeEnabled && !motionOk && (
+            {!st.autoRoll && shakeEnabled && motionOk && <div className="hint">{T.shakeOrTap}</div>}
+            {!st.autoRoll && shakeEnabled && !motionOk && (
               <button
                 className="btn small"
                 onClick={async () => {
@@ -575,14 +589,21 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
       <div className="controls">
         <span className="status">{statusText}</span>
-        {pending && (
+        {pending && !sent && (
           <>
-            <button className="btn" disabled={pending.chains.length === 0 || busy} onClick={undo}>
-              ↶ {T.undo}
-            </button>
-            <button className="btn primary" disabled={!turnDone || busy} onClick={submit}>
+            {sendAt !== null ? (
+              <button className="btn primary undo-send" onClick={undo}>
+                ↶ {T.undo}
+                <i className="countdown" style={{ ['--ms' as string]: `${UNDO_MS}ms` }} key={sendAt} />
+              </button>
+            ) : (
+              <button className="btn" disabled={pending.chains.length === 0 || busy} onClick={undo}>
+                ↶ {T.undo}
+              </button>
+            )}
+            {(!st.autoConfirm || paused) && <button className="btn primary" disabled={!turnDone || busy} onClick={submit}>
               ✓ {T.done}
-            </button>
+            </button>}
           </>
         )}
         {canClaim && (
