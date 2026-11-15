@@ -192,7 +192,7 @@ await c.addInitScript(()=>localStorage.setItem('nardy.settings',JSON.stringify({
 const p=await c.newPage();let errors=[];p.on('pageerror',e=>errors.push(String(e)));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
 for(const mode of ['tap','drag']){
 await p.goto('http://127.0.0.1:8787/play?mode=ai&variant=short&level=beginner');await p.waitForSelector('.status:has-text("Ваш ход")');
-const roll=p.getByRole('button',{name:'🎲 Бросить',exact:true});if(await roll.count()){await roll.click()}
+const roll=p.getByRole('button',{name:/^(🎲 )?Бросить$/,exact:true});if(await roll.count()){await roll.click()}
 await p.waitForSelector('[data-hint="movable"]');
 const before=await p.locator('[data-pips="me"]').textContent();
 let found=false;
@@ -249,7 +249,7 @@ async function verifyStates() {
       console.log(`${width} ${theme} selected targets ${targetCount}, expected ${expectedTargets}`);
     }
     if(state==='opponent'&&!(await p.locator('.status').innerText()).includes('Ход соперника'))throw Error('opponent state missing');
-    if(state==='roll')await p.getByRole('button',{name:'🎲 Бросить',exact:true}).waitFor();
+    if(state==='roll')await p.getByRole('button',{name:/^(🎲 )?Бросить$/,exact:true}).waitFor();
     if(state==='double'){
       await p.locator('button.btn.gold .countdown').waitFor();
       const started=Date.now();await p.waitForSelector('.dice-tray:not(.single) .die-wrap');
@@ -257,7 +257,12 @@ async function verifyStates() {
       // Restore the roll state to capture the countdown itself.
       await ctx.close();const shotCtx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
       await shotCtx.addInitScript(({theme,m})=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true,vibration:false}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},{theme,m});
-      const shot=await shotCtx.newPage();shot.on('pageerror',e=>stateErrors.push(String(e)));shot.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();await shot.screenshot({path:`${IMPL_SCREEN_DIR}/final-${state}-${width}-${theme}.png`});await shotCtx.close();pageCount+=2;continue;
+      const shot=await shotCtx.newPage();shot.on('pageerror',e=>stateErrors.push(String(e)));shot.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();
+      if(width===360){
+        const geometry=await shot.evaluate(()=>{const a=document.querySelector('.action-bar').getBoundingClientRect(),r=document.querySelector('.board-wrap').getBoundingClientRect();return {actionsBottom:a.bottom,viewport:innerHeight,boardWidth:r.width,boardHeight:r.height}});
+        if(geometry.actionsBottom>height-11.9||Math.abs(geometry.boardWidth-344)>.1||Math.abs(geometry.boardHeight-431.953125)>.1)throw Error('double actions clipped or board resized '+JSON.stringify(geometry));
+      }
+      await shot.screenshot({path:`${IMPL_SCREEN_DIR}/final-${state}-${width}-${theme}.png`});await shotCtx.close();pageCount+=2;continue;
     }
     if(state==='undo')await finishPending(p);
     if(state==='stack10'){
@@ -352,7 +357,8 @@ async function captureThemes() {
    }
    await p.locator('[data-hint="target"]').first().waitFor();
    const measured=await p.evaluate(()=>{const r=document.querySelector('.board-wrap').getBoundingClientRect(),h=document.querySelector('.mobile-hud').getBoundingClientRect();return {top:r.top,width:r.width,height:r.height,bottomGap:innerHeight-h.bottom,movable:document.querySelectorAll('[data-hint="movable"]').length,selected:document.querySelectorAll('[data-hint="selected"]').length,targets:document.querySelectorAll('[data-hint="target"]').length,rims:document.querySelectorAll('[data-checker-rim]').length}});
-   if(Math.abs(measured.top-66.1875)>.1||Math.abs(measured.width-344)>.1||Math.abs(measured.height-431.953125)>.1||Math.abs(measured.bottomGap-12)>.1||measured.rims!==30)throw Error('preview geometry/rims '+JSON.stringify(measured));
+   // Measured after moving the opponent strip above the board; width/height stay unchanged.
+   if(Math.abs(measured.top-140.390625)>.1||Math.abs(measured.width-344)>.1||Math.abs(measured.height-431.953125)>.1||Math.abs(measured.bottomGap-12)>.1||measured.rims!==30)throw Error('preview geometry/rims '+JSON.stringify(measured));
    for(const kind of ['movable','selected','target','seat']){
      await p.evaluate(kind=>{
        const svg=document.querySelector('.board-svg'),node=svg.querySelector(kind==='seat'?'[data-point-seat="9"]':`[data-hint="${kind}"]`),rect=node.getBoundingClientRect();
@@ -383,7 +389,7 @@ async function captureThemes() {
    await p.keyboard.press('Escape');await settings.waitFor({state:'hidden'});
    if(p.url()!==urlBefore||!await p.evaluate(()=>window.__previewBoard===document.querySelector('.board-svg')))throw Error('settings exited or remounted game');
    const boardAfter=await p.locator('.board-wrap').boundingBox();
-   if(Math.abs(boardAfter.y-measured.top)>.1||Math.abs(boardAfter.width-measured.width)>.1||Math.abs(boardAfter.height-measured.height)>.1)throw Error('settings changed board geometry');
+   if(Math.abs(boardAfter.y-measured.top)>.1||Math.abs(boardAfter.width-measured.width)>.1||Math.abs(boardAfter.height-measured.height)>.1)throw Error('settings changed board geometry '+JSON.stringify({before:measured,after:boardAfter}));
    console.log(theme+' '+JSON.stringify(measured)+' undo restored '+afterUndo+'; settings persisted and returned to same mounted board');
    for(const page of pages)await page.context().close();
  }

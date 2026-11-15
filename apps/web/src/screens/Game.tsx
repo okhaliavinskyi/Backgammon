@@ -534,7 +534,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         {rollActor && !shaking && (
           <div className="center-actions">
             {!st.autoRoll && <button className="btn primary big" onClick={doRoll}>
-              🎲 {T.roll}
+              {hud ? <Icon name="dice" /> : '🎲'} {T.roll}
             </button>}
             {mayDouble && !doubled && !hud && (
               <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
@@ -551,7 +551,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
                   setMotionOk(await requestMotionPermission());
                 }}
               >
-                📳 {T.enableShake}
+                {hud ? <Icon name="motion" /> : '📳'} {T.enableShake}
               </button>
             )}
           </div>
