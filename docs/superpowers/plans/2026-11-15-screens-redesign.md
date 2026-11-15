@@ -1,6 +1,8 @@
-# Screens Redesign Implementation Plan (v2, after review round 1)
+# Screens Redesign Implementation Plan (v3, after final review round 2)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execution:** Implement task-by-task, checking steps only after verification. Use the named superpowers workflow if installed; otherwise follow this document directly. Missing optional workflow skills must not block implementation.
+
+**Status (2026-11-16):** Two plan-review rounds completed, as requested by the owner; round 2 had one Opus reviewer. All 13 final findings are incorporated below and indexed in `2026-11-16-screens-redesign-review-r2.md`. No third plan-review round. Implementation has **not** started in this checkout. Start with root `handover.md`; runtime results quoted from the reviewer are scratch-checkout evidence, not acceptance of this branch.
 
 **Goal:** Redraw the four general screens (home, bot/local setup, online lobby, waiting room) and the game screen (phone and desktop) as approved on the design canvas, without touching game rules, protocol or the Worker.
 
@@ -36,16 +38,20 @@ Line numbers are for the **merged base** (re-run `grep -n` before editing; do no
 |---|---|---|
 | `.seg button:has-text("Короткие")` (~:411, on `/create`) | Task 3 | `.variant-card:has-text("Короткие")` |
 | `waitForSelector('.room-card')` (~:420) | Task 4 | `.room-card2` |
-| `button:has-text("✓")` (~:113,:116,:121) | Task 6 | `button:has-text("Готово")` |
+| `button:has-text("✓")` (~:114,:117,:121) | Task 6 | wait/recovery: `button:has-text("Готово"):enabled`; click: `button:has-text("Готово")` (always-rendered disabled Done must not satisfy recovery) |
 | `{name:'↶ Отменить',exact:true}`, `{name:'✓ Готово',…}` (~:202,:350) | Task 6 | `{name:'Отменить',exact:true}`, `{name:'Готово',exact:true}` |
 | `.pbar .tag.warn` `waitFor hidden` (~:147) | Task 6 | `.strip .tag.warn`, **preceded** by `await p.locator('.strip').first().waitFor()` so zero matches cannot pass vacuously. The legacy `!hud` path (768 portrait) still renders `.pbar`; use `.pbar .tag.warn, .strip .tag.warn` if that path is exercised |
 | `.status:has-text(...)`, `.status` reads (~:63,73,105,106,167,193,250,277,341,436) | none | **kept**: Task 6 renders a visually-hidden `<span className="status" role="status">` with `statusText` (1px clip, not `display:none`, so Playwright still sees it) |
 | emoji bar clicks `.emoji-bar button` / `nth(5)` (~:453) | Task 6 | `button[aria-label="Реакции"]` then `[role="menuitem"]` `nth(5)` — `ActionBar` therefore receives `EMOJIS` (≥ 6), not the 4 quick ones |
-| `.mobile-hud` geometry in PREVIEW_ONLY (~:353: board top `66.1875`, bottomGap `12`) | Task 6 | re-baseline in Task 7 with **measured** values after the opponent strip moves above the board |
+| `.mobile-hud` geometry in PREVIEW_ONLY (~:353: board top `66.1875`, bottomGap `12`) | Task 6 | re-baseline in Task 7 with **measured** values; R2 scratch: top≈138.58, bottomGap=12, not final acceptance |
+| `.game-top .score` (~:146, rejoin at 1100×900) | Task 6 | wait for `.board-svg` (header score absent on wide) |
+| direct `button:has-text("Сдаться")` (~:463) | Task 6 | open `button[aria-label="Ещё"]` first; then click the exact resign button; retain confirmation |
+| `.controls` diagnostic reads (~:53,:124) | Task 6 | `.action-bar, .controls` `.first().innerText()` (HUD / legacy respectively) |
+| `.pmeta[data-pips]` text (~:44,69,196,202,208,346,350,371,431,458–459) | Task 6 | keep numeric pips/off text unchanged; render diff in sibling `.pdiff`; never append status/diff to `.pmeta` |
 
 ## Findings that changed the spec (checked in code)
 
-1. **No "close room" in the Worker** (`worker/src/room.ts` closes sockets only at `:146 :206 :212 :419`; `ClientMsg` has no close/leave). Waiting-room button = **«Выйти»**.
+1. **No "close room" in the Worker** (`worker/src/room.ts` closes sockets only at `:146 :206 :212 :419`; `ClientMsg` has no close/leave). Waiting-room button = **«Выйти»**. It leaves the client view; it does not close the server room.
 2. `room.settings.isPublic` exists (`packages/core/src/protocol.ts:17`) → «Видна в лобби» is honest.
 3. `CreateRoom` shares `VariantPicker`, so it gets variant cards too (Task 3 Step 5).
 4. `Game.tsx` imports `SettingsScreen` and `Room.tsx` imports `PageHead` from `Menus.tsx` → no parallel batches.
@@ -53,9 +59,10 @@ Line numbers are for the **merged base** (re-run `grep -n` before editing; do no
 6. CSS cascade: today `main.tsx` imports `./App` before `./styles.css`, so `styles.css` wins ties (measured on a built bundle). Fixed in Task 1.
 7. Phone/desktop only: `Game.tsx` `compact` = portrait ≤767px, `wide` = ≥900×521, `hud = compact || wide`. **768×1024 portrait is neither** and keeps the legacy `!hud` layout (`.pbar`, ⚑ resign, 💬). Decision: the legacy path is **left untouched**; 768 is checked only for "no regression" by the existing LAYOUT_ONLY mode. The spec's «768» applies to menu screens.
 
-### Deliberate deviations from the spec (accepted; spec text amended in Task 5 Step 3)
+### Planning clarifications (spec synchronized in this handover; final visual approval remains pending)
 
 - Home rows have **no subtitles** (the only candidates — remembered params, room counter — are out of scope).
+- Phone whitespace: own strip stays within 16px below the board; action bar stays at the bottom. Remaining vertical slack sits **between the own strip and the action bar**.
 - Pips: only the **leader** shows «впереди на N»; the other strip shows nothing (a mirror «позади на N» is redundant).
 - Phone header keeps the small match score; the large score is **desktop only**.
 - Start button label: «Начать · Длинные · Матч до 3».
@@ -68,6 +75,7 @@ Line numbers are for the **merged base** (re-run `grep -n` before editing; do no
 
 | File | Action | Responsibility |
 |---|---|---|
+| `apps/web/src/App.tsx` | modify | remove bot-name emoji; keep localized level name |
 | `apps/web/src/main.tsx` | modify | import `./styles.css` before `./App` |
 | `apps/web/src/components/icons.tsx` | create | inline SVG `Icon` |
 | `apps/web/src/screens/menus.css` | create | styles for redrawn menu screens |
@@ -92,8 +100,8 @@ Line numbers are for the **merged base** (re-run `grep -n` before editing; do no
 | 1 gate G1 + i18n + main.tsx | `e2e/screens.e2e.cjs`, `GATES.md`, `lib/i18n.ts`, `main.tsx` | — | Sonnet |
 | 2 icons + Home | `icons.tsx`, `menus.css`, `Menus.tsx` (Home, NameChip) | i18n | Sonnet |
 | 3 setup | `Menus.tsx` (GameSetup, VariantPicker), `menus.css`, `e2e/online.e2e.cjs` (:411) | icons | Sonnet |
-| 4 lobby | `Menus.tsx` (Online), `menus.css`, `e2e/online.e2e.cjs` (:420) | icons | Sonnet |
-| 5 waiting room | `Room.tsx`, `menus.css`, spec, audit file, `GATES.md` | `Menus.tsx` (PageHead) | Sonnet (advisor Opus) |
+| 4 lobby | `Menus.tsx` (Online, Seg, SettingsScreen speed class), `menus.css`, `e2e/online.e2e.cjs` (:420) | icons | Sonnet |
+| 5 waiting room | `App.tsx` (bot-name emoji), `Room.tsx` (waiting + password/not-found icons), `menus.css`, spec, audit file, `GATES.md` | `Menus.tsx` (PageHead) | Sonnet (advisor Opus) |
 | 6 game HUD | `e2e/hud.e2e.cjs`, `GameHud.tsx`, `game-hud.css`, `Game.tsx`, `e2e/online.e2e.cjs` (HUD selectors), `GATES.md` | `Menus.tsx` (SettingsScreen), store | Sonnet (advisor Opus) |
 | 7 final verify | `e2e/online.e2e.cjs` (PREVIEW constants), screenshots, `GATES.md` | all | Opus (orchestrator) |
 
@@ -180,9 +188,11 @@ async function audit(p, label, expectCounts) {
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome' });
-  const created = await (await fetch(BASE + '/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ settings: { variant: 'long', matchLength: 3, moveTimer: 30, bank: 600, cube: false, isPublic: true }, password: '', name: 'Gate' }) })).json();
   for (const locale of LOCALES) for (const w of WIDTHS) {
+  // Each context needs its own room; sharing one starts a match on context #2.
+  const created = await (await fetch(BASE + '/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ settings: { variant: 'long', matchLength: 3, moveTimer: 30, bank: 600, cube: false, isPublic: false }, password: '', name: 'Gate' }) })).json();
+    if (!created.id) throw new Error('room creation failed: ' + JSON.stringify(created));
     const ctx = await browser.newContext({ viewport: { width: w, height: 800 }, locale });
     const p = await ctx.newPage();
     await p.route('**/api/rooms', (r) => r.request().method() === 'GET' ? r.fulfill({ json: { rooms: [0, 1, 2, 3, 4, 5].map(room) } }) : r.continue());
@@ -391,7 +401,7 @@ npm run typecheck; echo tc=$?; npm run build; echo build=$?
 # cascade proof: computed padding of .screen.home2 must be the menus.css value (12px 16px 20px), not styles.css's
 node e2e/screens.e2e.cjs > /tmp/g1.txt; echo "exit=$?"; grep -c " ru-RU /:" /tmp/g1.txt; grep " /:" /tmp/g1.txt | head
 ```
-Expected: no `/:` lines (home is clean in both locales at 3 widths); other routes still red (correct at this point). Also open `/` at 360 and `/settings` at 360 in the browser: no overflow, console clean, the in-game settings dialog title row not clipped. Then `node e2e/online.e2e.cjs > /tmp/e2e.txt; echo "exit=$?"` → 0.
+Expected: no `/:` lines (home is clean in both locales at 3 widths); other routes still red (correct at this point). Also open `/` at 360 and `/settings` at 360 in the browser: home has no overflow, console clean, the in-game settings dialog title row not clipped. Standalone RU settings speed overflow is an expected pending Task 4 fix, not a reason to claim G1 green here. Then `node e2e/online.e2e.cjs > /tmp/e2e.txt; echo "exit=$?"` → 0.
 
 - [ ] **Step 5: Commit** `git add apps/web/src/components/icons.tsx apps/web/src/screens/menus.css apps/web/src/screens/Menus.tsx && git commit -m "feat(web): home screen — svg icons, resume card, compact header"`
 
@@ -483,7 +493,7 @@ Expected: no `/ai`, `/local`, `/create` lines; e2e `exit=0`. In the browser at *
 
 ### Task 4: Online lobby
 
-**Files:** Modify `Menus.tsx` (`Online`), `menus.css`, `e2e/online.e2e.cjs` (`.room-card` → `.room-card2`).
+**Files:** Modify `Menus.tsx` (`Online`, `Seg`, `SettingsScreen` speed class), `menus.css`, `e2e/online.e2e.cjs` (`.room-card` → `.room-card2`).
 
 - [ ] **Step 1: State, filter, chips** inside `Online`:
 
@@ -533,13 +543,14 @@ Delete the old `timerLabel`.
   </div>
 </div>
 ```
-`Seg` must accept an optional `className` (add `className?: string` to its props and append it to `"seg"`). Typecheck proves it.
+`Seg` must accept an optional `className` (add `className?: string` to its props and append it to `"seg"`). In **SettingsScreen only**, pass `className="seg-2col"` to the animation-speed Seg. Do not select all four-option Segs: match length also has four options and must stay one row. Typecheck proves the prop; G1 proves the standalone RU settings screen no longer overflows at 360. Recheck the in-game dialog too.
 
 - [ ] **Step 3: CSS**
 
 ```css
 .lobby-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .seg.lobby-filter { flex: 1; }
+.seg.seg-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .room-card2 { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; min-height: 68px; border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-b); color: var(--text); text-align: left; cursor: pointer; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--bg2); display: grid; place-items: center; font-weight: 800; flex: none; }
 .room-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -565,7 +576,7 @@ Delete the old `timerLabel`.
 
 ### Task 5: Waiting room
 
-**Files:** Modify `Room.tsx` (only the `if (!match) {…}` return), `menus.css`, the spec, the audit file, `GATES.md`.
+**Files:** Modify `Room.tsx` (waiting return plus password/not-found icons), `App.tsx` (bot-name emoji only), `menus.css`, the spec, the audit file, `GATES.md`.
 
 - [ ] **Step 1: Replace the waiting block** (add `import { Icon } from '../components/icons';`; guard `room === null`):
 
@@ -606,6 +617,8 @@ if (!match) {
 ```
 The old `.share` / `<code>{link}</code>` row is dropped (raw URL no longer shown); the `copied` state is reused.
 
+Also replace the password PageHead's 🔒 with `<Icon name="lock" />` plus localized text (extend PageHead title to ReactNode if needed, updating its readers). Replace the not-found 🎲 with a neutral existing SVG icon. In `App.tsx`, bot name becomes `T[level]` without 🤖. Do not change controllers or protocol. Manually cover a password room and an invalid/nonexistent room at 360 in both languages; G1's normal waiting room does not cover these branches.
+
 - [ ] **Step 2: CSS**
 
 ```css
@@ -620,11 +633,11 @@ The old `.share` / `<code>{link}</code>` row is dropped (raw URL no longer shown
 .leave { align-self: center; min-height: 44px; padding: 0 16px; }
 ```
 
-- [ ] **Step 3: Amend docs** — spec line 38: replace «Закрыть комнату» явным текстом with «Выйти» (Worker не закрывает комнату: `worker/src/room.ts` закрывает сокеты только при ошибке/истечении); add the «Deliberate deviations» list from this plan to the spec under a new heading «Отклонения, принятые при планировании»; in the audit file §2 mark the open item resolved with the Worker reference.
+- [ ] **Step 3: Verify doc consistency** — the spec and audit were synchronized during the final handover. Keep «Выйти» (leaves the client, does not close the room), the planning clarifications and the Worker reference consistent with the implementation. Do not repeat stale edits by line number or describe planning choices as final visual approval.
 
 - [ ] **Step 4: Verify live** (wrangler running): create a room through the UI, check `/r/<id>` at 360/768/1440: code card, two buttons, params equal what was chosen, pill flips with the «Публичная» toggle both ways, «Скопировать» → «Скопировано». `node e2e/screens.e2e.cjs > /tmp/g1.txt; echo "exit=$?"` → **`exit=0`, `offenders=0`** (all routes incl. `/r/:id`, ru + en). Default `online.e2e.cjs` `exit=0`. Fill `GATES.md` G1 EVIDENCE (red base head + green tail).
 
-- [ ] **Step 5: Commit** `git add apps/web/src/screens/Room.tsx apps/web/src/screens/menus.css docs/superpowers/specs/2026-11-15-screens-redesign-design.md docs/superpowers/plans/2026-11-15-screens-redesign-spec-audit.md GATES.md && git commit -m "feat(web): waiting room — code card, share-first, params, leave"`
+- [ ] **Step 5: Commit** `git add apps/web/src/App.tsx apps/web/src/screens/Room.tsx apps/web/src/screens/menus.css docs/superpowers/specs/2026-11-15-screens-redesign-design.md docs/superpowers/plans/2026-11-15-screens-redesign-spec-audit.md GATES.md && git commit -m "feat(web): waiting room — code card, share-first, params, leave"`
 
 ---
 
@@ -632,7 +645,7 @@ The old `.share` / `<code>{link}</code>` row is dropped (raw URL no longer shown
 
 **Files:** Create `e2e/hud.e2e.cjs`, `apps/web/src/screens/GameHud.tsx`, `apps/web/src/screens/game-hud.css`. Modify `apps/web/src/screens/Game.tsx`, `e2e/online.e2e.cjs` (HUD selectors from the table), `GATES.md`.
 
-Scope: `compact` (portrait ≤767) and `wide` (≥900×521). The legacy `!hud` path (768 portrait) is **not changed**.
+Scope: `compact` (portrait ≤767) and `wide` (≥900×521). The legacy `!hud` path (768 portrait) is **not changed**. The existing `.controls`, `.status`, undo/done, claim/resign, `desk-more` and `.emoji-bar` JSX is shared on the base: preserve it under an explicit `!hud` branch (`<div className="desktop-hud"><div className="controls">…</div></div>` plus legacy social menu). All deletion/replacement instructions below apply **only to hud**. At 768 portrait status, Undo/Done and reactions must still work.
 
 - [ ] **Step 0: Measure the base, then write the gate and prove it red.** Measure first (thresholds come from this number):
 
@@ -686,7 +699,7 @@ const num = (s) => parseInt((s.match(/\d+/) || ['-1'])[0], 10);
       for (const s of r.small) BAD.push(`${L}: tap target ${s}`);
       if (r.undoDisabled !== true) BAD.push(`${L}: Undo should be disabled before the first move, got ${r.undoDisabled}`);
       const [pa, pc] = r.pm.map(num), diff = Math.abs(pa - pc);
-      const labels = await p.locator('.pmeta').allTextContents();
+      const labels = await p.locator('.pdiff').allTextContents();
       const ahead = labels.filter((t) => /впереди|ahead/.test(t)).length, even = labels.filter((t) => /равны|even/.test(t)).length;
       if (diff === 0 ? even !== 2 : ahead !== 1) BAD.push(`${L}: pips ${pa}/${pc}: found ahead=${ahead} even=${even}`);
     }
@@ -720,7 +733,8 @@ export function PlayerStrip(p: StripProps) {
       {p.pieceChip}
       <div className="strip-main">
         <div className="strip-name"><b title={p.name}>{p.name}</b>{p.offline && <span className="tag warn">{T.offline}</span>}{p.active && <span className="turn-now">{p.statusText}</span>}</div>
-        <div className="pmeta" data-pips={p.mine ? 'me' : 'opp'}>{p.pips} {T.pips} · {p.off}/15{diff && <span className={p.pipDiff > 0 ? 'ahead' : ''}> · {diff}</span>}</div>
+        <div className="pmeta" data-pips={p.mine ? 'me' : 'opp'}>{p.pips} {T.pips} · {p.off}/15</div>
+        {diff && <span className={'pdiff' + (p.pipDiff > 0 ? ' ahead' : '')}>{diff}</span>}
       </div>
       <span className="strip-score" title={T.score}>{p.score}</span>
       {p.cube}
@@ -776,7 +790,7 @@ export function ActionBar(p: ActionBarProps) {
       bank={bankLeft === null ? null : fmt(bankLeft)} move={moveLeft === null ? null : fmt(moveLeft)} low={!!clk?.low} />;
   };
   ```
-  `pipDiff` is positive for the side with **fewer** pips (it is ahead). `data-pips="me|opp"` and the `.pmeta` class are preserved inside `PlayerStrip` (e2e reads them; each page must still have exactly 2 `.pmeta`).
+  `pipDiff` is positive for the side with **fewer** pips (it is ahead). `data-pips="me|opp"` and `.pmeta` text are preserved inside `PlayerStrip` (e2e compares numeric/off text; each page must still have exactly 2 `.pmeta`). Diff goes in sibling `.pdiff`; G2 reads `.pdiff` for leader/even counts.
   3. **ActionBar props** (derive from existing state; the old rules were: undo shown when `pending && !sent && pending.chains.length > 0`, disabled `= chains.length===0 || busy` unless the countdown runs; Done shown when `!st.autoConfirm || paused`):
   ```tsx
   const hasPending = !!pending && !sent && pending.chains.length > 0;
@@ -788,12 +802,13 @@ export function ActionBar(p: ActionBarProps) {
     extra={<>{canClaim && <button className="btn gold" onClick={() => ctrl.claim()}>{T.claimWin}</button>}
       {mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>×2 {T.double}{st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}</button>}</>} />;
   ```
-  4. **Visually-hidden status** (keeps every `.status` e2e reader working and gives a live region): `<span className="status sr-status" role="status">{statusText}</span>` rendered **once** inside `compact`/`wide` HUD; the old `<span className="status">` in the middle block is removed.
+  4. **Visually-hidden status** (keeps every `.status` e2e reader working and gives a live region): `<span className="status sr-status" role="status">{statusText}</span>` rendered **once** inside `compact`/`wide` HUD; the old HUD copy is replaced; the legacy `!hud` `.status` remains.
+  **Header/menu contract for hud:** keep the existing gear button with `aria-label={T.settings}` (PREVIEW opens it directly). Add a separate dots Icon button with `aria-label={T.more}`. When open, `phone-more` contains settings (`T.settings`), resign (`T.resign`, no flag glyph) and an Icon close button with `aria-label={T.back}`; resign still opens `resignConfirm`. Never render a second always-visible settings button. Wide match meta is `<small className="desk-meta">` with match length, variant and Crawford marker.
   5. **Phone (`compact`):** order inside `.game`: `game-top` header (back, score `<small>` kept incl. Crawford, `game-top-actions` incl. `⋯`), `strip(opp)` **above** the board, board, then `<div className="mobile-hud">{strip(viewer)}{actionBar}</div>` (class `.mobile-hud` kept: PREVIEW_ONLY measures it). Delete `.quick-social`/`.quick-reactions`, the old `.controls` middle block and the old `.emoji-bar` inside `phone-more`. `phone-more` now holds only **settings** (`setSettingsOpen(true)`) and **resign** (`setConfirmResign(true)`); the `⋯` button in `game-top-actions` (`aria-label={T.more}`) toggles `moreOpen`.
-  6. **Desktop (`wide`):** reuse the existing CSS grid. Children, in DOM order, each with a class that `game-hud.css` maps to a grid area: `game-top` (`top`; contains back, small meta incl. `T.matchLength N · variant` and Crawford, and the `⋯` button), `<div className="desk-score">{m.score[0]} : {m.score[1]}</div>` (`score`), `strip(opp)` wrapped in `<div className="area-opp">`, `<aside className="chat">` (`chat`, online only — unchanged component), `<div className="mobile-hud">{strip(viewer)}{actionBar}</div>` (`me`), board (`board`). Hide the header `.score` block when `wide`. Delete the standalone `.resign` button, `desk-more`, the `emoji-bar`; resign/settings live in the same `phone-more` popover (reused for wide; position it under the header).
-  7. **Cleanup:** remove what becomes unused (`quick-reactions` markup, `desk-more`, the old `hud` branch in `playerBar`); `playerBar` stays for the legacy path. `npm run typecheck` must exit 0 (`noUnusedLocals`).
+  6. **Desktop (`wide`):** reuse the existing CSS grid. Children, in DOM order, each with a class that `game-hud.css` maps to a grid area: `game-top` (`top`; contains back, small meta incl. `T.matchLength N · variant` and Crawford, and the `⋯` button), `<div className="desk-score">{m.score[0]} : {m.score[1]}</div>` (`score`), `strip(opp)` wrapped in `<div className="area-opp">`, `<aside className="chat">` (`chat`, online only — unchanged component), `<div className="mobile-hud">{strip(viewer)}{actionBar}</div>` (`me`), board (`board`). Hide the header `.score` block when `wide`. Delete the standalone `.resign` button, `desk-more`, the `emoji-bar` from the wide HUD only; resign/settings live in the same `phone-more` popover (reused for wide; position it under the header).
+  7. **Cleanup:** remove what becomes unused in the new HUD (`quick-reactions` markup, the old `hud` branch in `playerBar`); preserve `desk-more`/`.emoji-bar` in `!hud`; `playerBar` stays for the legacy path. `npm run typecheck` must exit 0 (`noUnusedLocals`).
 
-- [ ] **Step 3: `game-hud.css`** (import it in `Game.tsx` after the existing imports; every override has ≥ the specificity of what it overrides — `.game:not(.phone-game) …` is (0,3,0), so desktop rules are written `.game.desk2 …`):
+- [ ] **Step 3: `game-hud.css`** (import it in `Game.tsx` after the existing imports; every override has ≥ the specificity of what it overrides — `.game:not(.phone-game) .x` is (0,3,0), tying `.game.desk2 .x`; the later bundle order from Task 1 breaks the tie. The root `.game:not(.phone-game)` alone is (0,2,0)):
 
 ```css
 .game .strip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--panel-b); min-height: 56px; width: 100%; }
@@ -802,10 +817,13 @@ export function ActionBar(p: ActionBarProps) {
 .game .strip-name { display: flex; align-items: baseline; gap: 8px; }
 .game .turn-now { font-size: 13px; font-weight: 700; color: var(--accent); }
 .game .strip .pmeta { font-size: 13px; margin: 0; opacity: .85; white-space: normal; overflow: visible; text-overflow: clip; }
-.game .strip .pmeta .ahead { color: var(--ok); font-weight: 700; }
+.game .strip .pdiff { font-size: 13px; }
+.game .strip .pdiff.ahead { color: var(--ok); font-weight: 700; }
 .game .strip .tag.warn { font-size: 11px; }
 .game .strip-timers { display: flex; flex-direction: column; gap: 2px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .game .mobile-hud { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: auto; grid-template-columns: none; }
+.game.phone-game .mobile-hud { margin-top: 0; flex: 1; }
+.game.phone-game .action-bar { margin-top: auto; }
 .game .action-bar { display: flex; align-items: center; gap: 8px; }
 .game .action-bar .btn { flex: 1; min-height: 48px; }
 .game .action-bar .round { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--panel-b); background: var(--panel); color: var(--text); display: grid; place-items: center; position: relative; flex: none; }
@@ -823,7 +841,7 @@ export function ActionBar(p: ActionBarProps) {
 .game.desk2 .mobile-hud { grid-area: me; margin-top: 0; }
 .game.desk2 .chat { grid-area: chat; align-self: stretch; }
 ```
-The old `.game:not(.phone-game) .desk-more/.emoji-bar/.controls .quick-social` rules become dead; leave them (not our file) but ensure nothing references those classes any more.
+The old desktop/social selectors still serve the legacy `!hud` path; keep their markup and CSS. New hud markup does not use them. Phone flex slack belongs between own strip and action bar; do not remove bottom pinning just to satisfy G2.
 
 - [ ] **Step 4: e2e selectors** — apply the table rows for Task 6 in `e2e/online.e2e.cjs` (`grep -n "✓\|Отменить\|pbar\|emoji-bar\|nth(5)" e2e/online.e2e.cjs`, edit each hit). `.status` readers need **no** change (hidden status element).
 
@@ -842,13 +860,28 @@ Expected `exit=0` each; `offenders=0`. Manual in the browser, wood + minimal + m
 
 ### Task 7: Final verification
 
-- [ ] **Step 1: List every e2e mode** — `grep -n "_ONLY" e2e/online.e2e.cjs` (expect LAYOUT_ONLY, INPUT_ONLY, STATES_ONLY, PREVIEW_ONLY, GHOST_ONLY, plus any other found; the handover lists the invocations at `docs/superpowers/plans/2026-11-15-claude-handover.md:134-156`, LAYOUT_ONLY needs `HINT_GATE=1 TASK=verification`).
+- [ ] **Step 1: List every e2e mode** — `grep -n "_ONLY" e2e/online.e2e.cjs` (currently LAYOUT_ONLY, INPUT_ONLY, STATES_ONLY, PREVIEW_ONLY, GHOST_ONLY, REVIEW_ONLY, BOARD_ONLY modifier, REJOIN_ONLY, RECOVERY_ONLY, T2_ONLY; the handover lists the invocations at `docs/superpowers/plans/2026-11-15-claude-handover.md:134-156`, LAYOUT_ONLY needs `HINT_GATE=1 TASK=verification`).
 - [ ] **Step 2: Run each mode separately, exit code read per run**
 
 ```bash
-for m in "" "LAYOUT_ONLY=1 HINT_GATE=1 TASK=verification" "STATES_ONLY=1" "GHOST_ONLY=1" "PREVIEW_ONLY=1" "INPUT_ONLY=1"; do
-  env $m node e2e/online.e2e.cjs /tmp/nardy-$$ > /tmp/e2e-mode.txt; echo "[$m] exit=$?"; done
+# bash (zsh does not word-split $m the same way); retain a log per mode.
+bash <<'RUN_MODES'
+failed=0
+for m in "DEFAULT" "LAYOUT_ONLY=1 HINT_GATE=1 TASK=verification" "STATES_ONLY=1" "GHOST_ONLY=1" "PREVIEW_ONLY=1" "INPUT_ONLY=1" "REVIEW_ONLY=1" "REVIEW_ONLY=1 BOARD_ONLY=1" "REJOIN_ONLY=1" "RECOVERY_ONLY=1" "T2_ONLY=1"; do
+  read -r -a flags <<< "$m"
+  label=${flags[0]%%=*}
+  [[ "$m" == "REVIEW_ONLY=1 BOARD_ONLY=1" ]] && label=BOARD_ONLY
+  [[ "$m" == DEFAULT ]] && flags=()
+  env "${flags[@]}" node e2e/online.e2e.cjs "/tmp/nardy-$label" > "/tmp/e2e-$label.txt" 2>&1
+  result=$?
+  echo "[$m] exit=$result log=/tmp/e2e-$label.txt"
+  [[ $result -ne 0 ]] && failed=1
+done
+exit "$failed"
+RUN_MODES
 ```
+These modes currently hard-code tracked screenshot paths under `docs/design/impl-screens`, ignoring the output argument in several helpers. Before running, record a clean baseline and list those tracked paths. Afterward restore **only tracked historical PNGs overwritten by the runs**, using explicit paths from `git diff --name-only -- docs/design/impl-screens` and the pre-run list. Do not blanket restore the directory or discard owner files/new redesign screenshots. New final screenshots use `redesign-*`; keep those. Alternatively add an `IMPL_SCREEN_DIR` override to every hard-coded writer and run with a tmp directory (record this intentional test-only change).
+
 - [ ] **Step 3: Re-baseline PREVIEW_ONLY geometry** (`:353` area: board top, `bottomGap` on `.mobile-hud`) from the **measured** new values at 360×780; change the constants deliberately and say so in the commit message. Fix any `.status`/selector line in the other modes that now fails, using the table.
 - [ ] **Step 4: Totals**
 
@@ -859,7 +892,7 @@ node e2e/screens.e2e.cjs > /tmp/g1.txt; echo "g1=$?"; node e2e/hud.e2e.cjs > /tm
 All `=0`. Paste green tails into `GATES.md`.
 - [ ] **Step 5: Screenshots** at 360/768/1440 × wood/minimal/malachite for home, setup, lobby (mock), waiting, game phone, game desktop, plus a 20-character name on `/ai` and `/online` at 360; save to `docs/design/impl-screens/redesign-<screen>-<w>-<theme>.png`; compare to the canvas frames; **name every difference** («at 360: waiting params card 12px lower than canvas»).
 - [ ] **Step 6: Commit** `git add e2e/online.e2e.cjs docs/design/impl-screens/redesign-*.png GATES.md && git commit -m "test: re-baseline preview geometry; redesign screenshots; gate evidence"`
-- [ ] **Step 7: Final review (CLAUDE.md pipeline)** — flagship reviewers under the orchestrator until a round has no P0–P2 (owner cap for plan review is 2 rounds; implementation review is separate), then the full diff to `codex exec -m <GPT-6-Astra id> … < /dev/null`. Before any dispatch: stdin closed, echo-probe the file, `node_modules` present in the review tree, codex usage not exhausted.
+- [ ] **Step 7: Final implementation review** — separate from the **completed two** plan-review rounds. Use available independent reviewer tooling with the complete final diff, resolve material findings, and rerun affected checks. The owner requested Opus advisor + Sonnet medium executor for Claude implementation; do not guess an unavailable Codex model ID or restart plan review. If a required reviewer/model is unavailable, report that limitation precisely; never claim independent review passed. No push/merge/deploy is authorized by this step.
 
 ---
 
@@ -875,4 +908,4 @@ All `=0`. Paste green tails into `GATES.md`.
 | Читатели общих полей | Global Constraints table; i18n (1); `.back` readers (2); `.pmeta`/`.status` (6) |
 | Проверка | G1 (5), G2 (6), all e2e modes (7), screenshots (7) |
 
-**Known gaps, stated:** 768 portrait game keeps the legacy layout (decision 7); desktop HUD gate runs in local mode (no chat) — the chat placement is checked by hand and by the online e2e; no web unit tests exist (pip diff is gate-verified live); contrast of `#1a0d06` on `--accent` per theme is not measured by a gate (reviewers did not verify it — check minimal/malachite by eye or with `apps/web/scripts/contrast.ts`).
+**Known gaps, stated:** 768 portrait game keeps the legacy layout (decision 7); desktop HUD gate runs in local mode (no chat) — the chat placement is checked by hand and by the online e2e; no web unit tests exist (pip diff is gate-verified live); contrast of `#1a0d06` on `--accent` per theme was not measured by the reviewers — calculate the WCAG ratio for all themes during Task 7 (≥4.5:1 for normal text; visual inspection alone does not prove it). Resume card requires a saved-AI fixture; password/not-found branches and iOS-only motion permission UI need explicit coverage. The canvas is private; if unavailable, compare against the durable spec and state that visual canvas parity is unverified.
