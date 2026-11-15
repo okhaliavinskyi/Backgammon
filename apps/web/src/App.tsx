@@ -42,7 +42,7 @@ function LocalGame({ query, nav }: { query: URLSearchParams; nav: (p: string) =>
         mode,
         level,
         settings: { variant, matchLength: Number(query.get('len')) || 1, cube: query.get('cube') === '1' },
-        names: mode === 'ai' ? [name, `${T[level]} 🤖`] : [`${name} (${T.white})`, T.black],
+        names: mode === 'ai' ? [name, T[level]] : [`${name} (${T.white})`, T.black],
       });
     }
     return () => {
