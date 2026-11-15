@@ -1304,3 +1304,21 @@ input:not([type='checkbox']) {
 .game-settings .screen { margin: 0; }
 .game-settings .seg:has(button:nth-child(4)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .game-settings .seg button { min-width: 0; }
+
+/* Desktop/landscape: board left (as tall as the viewport allows); right column = chat on top, phone-style HUD (player | controls | opponent) at the bottom. */
+@media (min-width: 900px) and (min-height: 521px) {
+  .game:not(.phone-game) {
+    display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: 'top top' 'board chat' 'board more' 'board hud';
+    align-content: center; justify-items: stretch; gap: 10px 20px; width: 100%; max-width: 1500px; margin: 0 auto; padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
+  }
+  .game:not(.phone-game) .game-top { grid-area: top; max-width: none; padding-top: 0; }
+  .game:not(.phone-game) .board-wrap { grid-area: board; align-self: center; justify-self: center; width: min(100%, calc((100dvh - 112px) * var(--ar))) !important; }
+  .game:not(.phone-game) .mobile-hud { grid-area: hud; grid-template-columns: minmax(0, 1fr) 120px minmax(0, 1fr); margin-top: 0; }
+  .game:not(.phone-game) .desk-more { grid-area: more; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .game:not(.phone-game) .emoji-bar { flex-wrap: nowrap; justify-content: flex-start; }
+  .game:not(.phone-game) .emoji-bar button { font-size: 1.15rem; padding: .15em .2em; }
+  .game:not(.phone-game) .chat { grid-area: chat; align-self: end; min-height: 240px; max-height: 100%; position: static; width: auto; height: auto; min-height: 0; box-shadow: none; animation: none; }
+  .game:not(.phone-game) .chat-head .icon-btn { display: none; }
+  .game:not(.phone-game) .controls .quick-social { display: none; }
+}

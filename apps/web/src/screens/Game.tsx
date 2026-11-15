@@ -35,8 +35,7 @@ interface Pending {
   ts: TurnState;
 }
 
-function useCompactLayout(): boolean {
-  const query = '(orientation: portrait) and (max-width: 767px)';
+function useCompactLayout(query = '(orientation: portrait) and (max-width: 767px)'): boolean {
   const [compact, setCompact] = useState(() => matchMedia(query).matches);
   useEffect(() => {
     const media = matchMedia(query);
@@ -74,6 +73,9 @@ function stepSound(s: Step) {
 export function GameScreen({ onExit }: { onExit: () => void }) {
   const T = useT();
   const compact = useCompactLayout();
+  // desktop/tablet-landscape: board left, phone-style HUD + chat in a side column (see styles.css)
+  const wide = useCompactLayout('(min-width: 900px) and (min-height: 521px)') && !compact;
+  const hud = compact || wide;
   const [moreOpen, setMoreOpen] = useState(false);
   const g = useGame();
   const st = useSettings();
@@ -397,7 +399,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     const p = g.players[c];
     const clk = clockFor(c);
     const active = act === c;
-    if (compact) {
+    if (hud) {
       const running = act === c && clocks?.turnStartedAt != null;
       const elapsed = running ? Math.max(0, serverNow - clocks!.turnStartedAt!) : 0;
       const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
@@ -453,18 +455,18 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
           ←
         </button>
         <div className="score">
-          {!compact && <span>{nameOf(0)}</span>}
+          {!hud && <span>{nameOf(0)}</span>}
           <b>
             {m.score[0]} : {m.score[1]}
           </b>
-          {!compact && <span>{nameOf(1)}</span>}
+          {!hud && <span>{nameOf(1)}</span>}
           <small>
             {T.matchLength} {m.settings.matchLength} · {variant === 'long' ? T.long : T.short}
             {m.crawford ? ` · ${T.crawford}` : ''}
           </small>
         </div>
         <div className="game-top-actions">
-          {g.mode === 'online' && !compact && <button className="icon-btn" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
+          {g.mode === 'online' && !hud && <button className="icon-btn" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
             💬{g.chat.length > 0 && !chatOpen && <i className="dot" />}
           </button>}
           <button className="icon-btn settings-button" aria-label={T.settings} onClick={() => setSettingsOpen(true)}>
@@ -476,10 +478,11 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         </div>
       </header>
 
-      {!compact && playerBar(opp)}
+      {!hud && playerBar(opp)}
 
       <div className={'board-wrap' + (compact ? ' compact-board' : '')} style={{
         aspectRatio: `${boardWidth} / ${compact ? 1100 : 800}`,
+        ['--ar' as string]: boardWidth / 800,
         width: compact ? `min(100%, calc((100dvh - 290px) * ${boardWidth} / 1100))` : `min(100%, 1100px, calc((100dvh - 300px) * ${boardWidth} / 800))`,
       }}>
         <BoardView
@@ -530,7 +533,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {!st.autoRoll && <button className="btn primary big" onClick={doRoll}>
               🎲 {T.roll}
             </button>}
-            {mayDouble && !doubled && !compact && (
+            {mayDouble && !doubled && !hud && (
               <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
                 ×2 {T.double}
                 {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
@@ -636,13 +639,13 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         {g.conn !== 'open' && <div className="conn-banner">{g.conn === 'connecting' ? T.connecting : T.reconnecting}</div>}
       </div>
 
-      {!compact && playerBar(viewer, true)}
+      {!hud && playerBar(viewer, true)}
 
-      <div className={compact ? 'mobile-hud' : 'desktop-hud'}>
-      {compact && playerBar(viewer, true)}
+      <div className={hud ? 'mobile-hud' : 'desktop-hud'}>
+      {hud && playerBar(viewer, true)}
       <div className="controls">
-        {compact && <div className="quick-social">
-          {g.mode === 'online' && <button className="btn quick-chat" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
+        {hud && <div className="quick-social">
+          {g.mode === 'online' && compact && <button className="btn quick-chat" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
             💬 {T.chat}{g.chat.length > 0 && !chatOpen && <i className="dot" />}
           </button>}
           <div className="quick-reactions">
@@ -672,22 +675,22 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {T.claimWin}
           </button>
         )}
-        {!compact && m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && (
+        {!hud && m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && (
           <button className="btn subtle" onClick={() => setConfirmResign(true)}>
             ⚑ {T.resign}
           </button>
         )}
-        {compact && mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
+        {hud && mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
           ×2 {T.double}
           {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
         </button>}
         {compact && <button className="icon-btn" aria-label={T.more} onClick={() => setMoreOpen((open) => !open)}>⋯</button>}
       </div>
 
-      {compact && playerBar(opp)}
+      {hud && playerBar(opp)}
       </div>
 
-      {(!compact || moreOpen) && <div className={compact ? 'phone-more' : undefined}>
+      {(!compact || moreOpen) && <div className={compact ? 'phone-more' : 'desk-more'}>
       {compact && <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}>✕</button>}
       <div className="emoji-bar">
         {EMOJIS.map((e) => (
@@ -698,9 +701,10 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
       </div>
 
       {compact && <button className="btn subtle" onClick={() => { setMoreOpen(false); setConfirmResign(true); }}>⚑ {T.resign}</button>}
+      {wide && m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && <button className="btn subtle resign" onClick={() => setConfirmResign(true)}>⚑ {T.resign}</button>}
       </div>}
 
-      {chatOpen && g.mode === 'online' && (
+      {(chatOpen || wide) && g.mode === 'online' && (
         <aside className="chat">
           <div className="chat-head">
             <b>{T.chat}</b>
