@@ -60,7 +60,7 @@ async function autoFlow(b) {
   });
   await p.goto(BASE + '/play?mode=ai&level=beginner');
   await p.waitForSelector('.status:has-text("Ваш ход")', {timeout:15000});
-  await p.waitForFunction(() => document.querySelectorAll('.dice-tray:not(.single) .die-wrap').length === 2, {timeout:1500});
+  await p.waitForFunction(() => document.querySelectorAll('.dice-tray:not(.single) .die-wrap').length === 2, null, {timeout:1500});
   console.log('M2 auto-roll dice = 2');
   const before = await finishPending(p);
   await p.locator('button.undo-send').click();
@@ -135,7 +135,7 @@ async function rejoinScenario(b) {
   const {id}=await r.json(),url=BASE+'/r/'+id;
   for(const p of [a,old]){await p.goto(url);await p.locator('input[type=password]').fill('42');await p.locator('button:has-text("Войти")').click();}
   await old.waitForSelector('.board-svg');await old.context().close();await a.waitForTimeout(400);
-  const c=await mk(b,'');await c.goto(url);
+  let c=await mk(b,'');await c.goto(url);
   await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor({timeout:3000});
   if(process.env.REJOIN_SHOTS)for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite']){
     await c.setViewportSize({width,height});await c.evaluate(theme=>{const s=JSON.parse(localStorage.getItem('nardy.settings'));s.state.theme=theme;localStorage.setItem('nardy.settings',JSON.stringify(s))},theme);await c.reload();await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor();
@@ -145,6 +145,10 @@ async function rejoinScenario(b) {
   await c.locator('input[type=password]').fill('42');await c.getByRole('button',{name:'Вернуться',exact:true}).click();await c.waitForSelector('.game-top .score');
   await a.locator('.pbar .tag.warn').waitFor({state:'hidden',timeout:3000});
   if(!await a.getByText('Борис',{exact:true}).count())throw Error('rejoin fallback name is not Борис');
+  await c.reload();await c.waitForSelector('.board-svg');await a.waitForTimeout(150);
+  if(!await a.getByText('Борис',{exact:true}).count())throw Error('rejoin fallback name lost after reload');
+  const rejoinContext=c.context();await c.close();c=await rejoinContext.newPage();c.on('pageerror',e=>errors.push('rejoin fresh tab: '+e));c.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});await c.goto(url);await c.waitForSelector('.board-svg');await a.waitForTimeout(150);
+  if(!await a.getByText('Борис',{exact:true}).count())throw Error('rejoin fallback name lost in fresh tab');
   const d=await mk(b,'D');await d.goto(url);await d.getByText('Комната заполнена',{exact:true}).waitFor();
   if(await d.locator('input[type=password]').count())throw Error('full room prompted for password');
   console.log('rejoin: wrong password rejected, right password welcomed as Борис; full online room no password input');
@@ -178,8 +182,8 @@ for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of
 function stacksBad(v){return v.stacks.some(s=>s.height>290.001)}
 async function verifyInput() {
 const b=await chromium.launch({channel:'chrome'}),c=await b.newContext({viewport:{width:360,height:780},isMobile:true,hasTouch:true});
-await c.addInitScript(()=>localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'Input',lang:'ru',theme:'wood',sound:false,speed:'instant',autoRoll:false,autoConfirm:false,hints:true}})));
-const p=await c.newPage();let errors=[];p.on('pageerror',e=>errors.push(String(e)));
+await c.addInitScript(()=>localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'Input',lang:'ru',theme:'wood',sound:false,speed:'instant',autoRoll:false,autoConfirm:false,hints:true,vibration:false}})));
+const p=await c.newPage();let errors=[];p.on('pageerror',e=>errors.push(String(e)));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
 for(const mode of ['tap','drag']){
 await p.goto('http://127.0.0.1:8787/play?mode=ai&variant=short&level=beginner');await p.waitForSelector('.status:has-text("Ваш ход")');
 const roll=p.getByRole('button',{name:'🎲 Бросить',exact:true});if(await roll.count()){await roll.click()}
@@ -230,8 +234,13 @@ async function verifyStates() {
       const measured={rings:await p.locator('[data-hint="movable"]').count(),selected:await p.locator('[data-hint="selected"]').count(),expected:new Set(core.legalNextSteps(core.turnState(short)).map(step=>step.from)).size};
       if(measured.rings+measured.selected!==measured.expected||measured.rings===0)throw Error('movable ring mismatch '+JSON.stringify(measured));
       console.log(`${width} ${theme} short movable rings ${measured.rings} + selected ${measured.selected}, expected ${measured.expected}`);
+      const loc=await p.locator('[data-hint="movable"]').first().evaluate(g=>g.closest('g.ck').dataset.loc);
+      const expectedTargets=new Set(core.destinationsFrom(core.turnState(short),23-Number(loc.slice(1))).map(d=>d.to)).size;
       await tap(p,p.locator('[data-hint="movable"]'));
       await p.locator('[data-hint="target"]').first().waitFor();
+      const targetCount=await p.locator('[data-hint="target"], [data-hint="target-off"]').count();
+      if(targetCount!==expectedTargets)throw Error('target count '+targetCount+' expected '+expectedTargets);
+      console.log(`${width} ${theme} selected targets ${targetCount}, expected ${expectedTargets}`);
     }
     if(state==='opponent'&&!(await p.locator('.status').innerText()).includes('Ход соперника'))throw Error('opponent state missing');
     if(state==='roll')await p.getByRole('button',{name:'🎲 Бросить',exact:true}).waitFor();
@@ -241,17 +250,68 @@ async function verifyStates() {
       console.log(`${width} ${theme} double countdown rolled after ${Date.now()-started}ms`);
       // Restore the roll state to capture the countdown itself.
       await ctx.close();const shotCtx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
-      await shotCtx.addInitScript(({theme,m})=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},{theme,m});
-      const shot=await shotCtx.newPage();await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();await shot.screenshot({path:`docs/design/impl-screens/final-${state}-${width}-${theme}.png`});await shotCtx.close();pageCount+=2;continue;
+      await shotCtx.addInitScript(({theme,m})=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true,vibration:false}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},{theme,m});
+      const shot=await shotCtx.newPage();shot.on('pageerror',e=>stateErrors.push(String(e)));shot.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();await shot.screenshot({path:`docs/design/impl-screens/final-${state}-${width}-${theme}.png`});await shotCtx.close();pageCount+=2;continue;
     }
     if(state==='undo')await finishPending(p);
     if(state==='stack10'){
-      const height=await p.evaluate(()=>{const cs=[...document.querySelectorAll('g.ck[data-color="0"]')].filter(c=>c.dataset.loc==='s23'),g=document.createElementNS('http://www.w3.org/2000/svg','g');cs.forEach(c=>g.append(c.cloneNode(true)));document.querySelector('svg').append(g);const h=g.getBBox().height;g.remove();return h});
-      if(height>290.001)throw Error('10-stack height '+height);console.log(`${width} ${theme} stack10 height ${height}`);
+      const height=await p.evaluate(()=>{const cs=[...document.querySelectorAll('g.ck[data-color="0"]')].filter(c=>c.dataset.loc==='s23'),g=document.createElementNS('http://www.w3.org/2000/svg','g');cs.forEach(c=>g.append(c.cloneNode(true)));document.querySelector('svg').append(g);const h=g.getBBox().height;g.remove();return {height:h,count:cs.length}});
+      if(height.count!==10||height.height>290.001)throw Error('10-stack height '+height);console.log(`${width} ${theme} stack10 height ${height.height}, count ${height.count}`);
     }
     await p.screenshot({path:`docs/design/impl-screens/final-${state}-${width}-${theme}.png`});pageCount++;await ctx.close();
   }
   await b.close();fs.rmSync(dir,{recursive:true});console.log('state matrix pages '+pageCount+', console errors '+stateErrors.length);if(stateErrors.length)throw Error(stateErrors.join('\n'));
+}
+
+async function rollRecovery(b) {
+ const a=await mk(b,'Roll A'),other=await mk(b,'Roll B');
+ await a.evaluate(()=>{const s=JSON.parse(localStorage.getItem('nardy.settings'));Object.assign(s.state,{autoRoll:true,speed:'instant'});localStorage.setItem('nardy.settings',JSON.stringify(s))});
+ let cut=false,rolls=0,seq=-1;
+ await a.routeWebSocket(/\/ws$/,ws=>{const srv=ws.connectToServer();srv.onMessage(raw=>{const m=JSON.parse(String(raw));if(m.t==='state'&&m.match)seq=m.match.seq;ws.send(raw)});ws.onMessage(raw=>{const m=JSON.parse(String(raw));if(m.t==='roll'){rolls++;if(!cut){cut=true;ws.close();return;}}srv.send(raw)})});
+ const r=await fetch(BASE+'/api/rooms',{method:'POST',body:JSON.stringify({settings:{variant:'long',isPublic:false,moveTimer:0,bank:0}})}),{id}=await r.json();await a.goto(BASE+'/r/'+id);await other.goto(BASE+'/r/'+id);await a.waitForSelector('.board-svg');
+ if(!await a.locator('.status:has-text("Ваш ход")').count())await playTurn(other);
+ const until=Date.now()+8000;while(rolls<2&&Date.now()<until)await a.waitForTimeout(50);
+ if(rolls!==2)throw Error(`auto-roll stuck after reconnect: roll frames ${rolls}, seq ${seq}`);
+ await a.waitForSelector('.dice-tray:not(.single) .die-wrap');console.log(`auto-roll reconnect: ${rolls} frames, seq ${seq}`);await a.context().close();await other.context().close();
+}
+async function reviewBoard(b) {
+ const fs=require('fs'),path=require('path'),os=require('os'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'nardy-board-'));
+ require('child_process').execFileSync(path.resolve('node_modules/.bin/esbuild'),['packages/core/src/index.ts','--bundle','--format=esm','--platform=node','--outfile='+path.join(dir,'core.mjs')]);
+ const core=await import('file://'+path.join(dir,'core.mjs'));let i=0;let m=core.newMatch({variant:'short',matchLength:3,cube:false},()=>[6,1][i++%2]);
+ m.board.pts[0].fill(0);m.board.pts[1].fill(0);m.board.pts[0][0]=5;m.board.pts[0][6]=5;m.board.pts[0][12]=5;m.board.pts[1][0]=15;
+ const c=await b.newContext({viewport:{width:1100,height:900}});await c.addInitScript(m=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme:'wood',sound:false,speed:'instant',autoRoll:false,autoConfirm:false,hints:true,vibration:false}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},m);
+ const p=await c.newPage();p.on('pageerror',e=>errors.push('review board: '+e));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});await p.goto(BASE+'/play?resume=1');await p.waitForSelector('g.ck[data-loc="s23"]');
+ async function drag(from,to){const a=await p.locator(`g.ck[data-color="0"][data-loc="${from}"]`).last().boundingBox(),svg=await p.locator('.board-svg').boundingBox();const slot=Number(to.slice(1)),x=slot<=5?468+(5-slot)*64+32:slot<=11?24+(11-slot)*64+32:slot<=17?24+(slot-12)*64+32:468+(slot-18)*64+32,y=slot>=12?53:747;await p.mouse.move(a.x+a.width/2,a.y+a.height/2);await p.mouse.down();await p.mouse.move(svg.x+x*svg.width/1000,svg.y+y*svg.height/800,{steps:10});await p.mouse.up();await p.waitForTimeout(50);}
+ await drag('s23','s17');await drag('s11','s10');
+ const top=await p.locator('g.ck[data-color="0"][data-loc="s17"]').last().locator('text').textContent({timeout:1000}).catch(()=>null);
+ if(top!=='6')throw Error('compressed stack logical top hidden: last painted checker count '+top);
+ console.log('compressed stack logical top painted last: count 6');
+ await p.getByRole('button',{name:'✓ Готово',exact:true}).click();
+ await p.waitForFunction(()=>{const m=JSON.parse(localStorage.getItem('nardy.aiGame')).match;return m.phase==='move'&&m.turn===1},null,{polling:10,timeout:3000});await p.waitForTimeout(20);
+ const dims=await p.locator('g.ck[data-color="1"]').evaluateAll(cs=>cs.filter(x=>Number(getComputedStyle(x).opacity)<1).length);
+ if(dims)throw Error('opponent turn stale dimming: '+dims+' checkers');console.log('opponent turn dimmed checkers: 0');await c.close();fs.rmSync(dir,{recursive:true});
+}
+
+async function verifyGhosts(b) {
+ const fs=require('fs'),os=require('os'),path=require('path'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'nardy-ghost-'));
+ const entry=`import {createRoot} from ${JSON.stringify(path.resolve('node_modules/react-dom/client.js'))};
+ import {BoardView} from ${JSON.stringify(path.resolve('apps/web/src/components/Board.tsx'))};
+ import {initialBoard} from ${JSON.stringify(path.resolve('packages/core/src/index.ts'))};
+ const root=createRoot(document.getElementById('root'));
+ window.reviewRender=(kind)=>{const b=initialBoard('short');b.pts[0].fill(0);b.pts[1].fill(0);b.pts[0][0]=15;b.pts[1][0]=15;
+ if(kind==='hit'){b.pts[1][0]=14;b.pts[1][22]=1;}
+ if(kind==='stack'){b.pts[0][0]=5;b.pts[0][6]=10;}
+ root.render(<BoardView board={b} vertical={false} variant="short" viewer={0} mover={kind==='off'?1:0} theme="wood" moveMs={0} movable={new Set()} dimMovable={new Set()} selected="s23" targets={new Set([kind==='hit'?'s22':kind==='stack'?'s17':'off'])} lastMove={new Set()} hints={true} onLocClick={()=>{}} onDrop={()=>{}}/>);};window.reviewRender('hit');`;
+ const code=require('child_process').execFileSync(path.resolve('node_modules/.bin/esbuild'),['--bundle','--format=iife','--platform=browser','--loader=tsx','--jsx=automatic','--tsconfig=apps/web/tsconfig.json','--sourcefile='+path.resolve('e2e/ghost-fixture.tsx')],{input:entry,encoding:'utf8',maxBuffer:8*1024*1024});
+ const p=await b.newPage({viewport:{width:1100,height:900}});p.on('pageerror',e=>errors.push('ghost: '+e));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
+ await p.setContent('<div id="root" style="width:1000px;height:800px"></div>');await p.addScriptTag({content:code});
+ await p.locator('[data-hint="target"] circle').first().waitFor();
+ const cy=await p.locator('[data-hint="target"] circle').first().getAttribute('cy');if(cy!=='53')throw Error('hit ghost y '+cy+' expected 53');
+ await p.evaluate(()=>window.reviewRender('stack'));await p.locator('[data-target="s17"]').waitFor();
+ const layer=await p.locator('[data-target="s17"]').evaluate(g=>{const cs=[...document.querySelectorAll('g.ck')];return {y:g.querySelector('circle').getAttribute('cy'),above:!!(cs.at(-1).compareDocumentPosition(g)&Node.DOCUMENT_POSITION_FOLLOWING)}});
+ if(layer.y!=='285'||!layer.above)throw Error('stack ghost hidden or misplaced '+JSON.stringify(layer));
+ await p.evaluate(()=>window.reviewRender('off'));await p.locator('[data-hint="target-off"] rect').first().waitFor();const y=await p.locator('[data-hint="target-off"] rect').first().getAttribute('y');if(y!=='27')throw Error('opponent off tray y '+y+' expected 27');
+ console.log('ghosts: hit y=53; 10-stack landing y=285 above checkers; opponent tray y=27');await p.close();fs.rmSync(dir,{recursive:true});
 }
 
 (async () => {
@@ -259,10 +319,15 @@ async function verifyStates() {
   if (process.env.LAYOUT_ONLY) { await verifyLayouts(); await verifyInput(); return; }
   if (process.env.INPUT_ONLY) { await verifyInput(); return; }
   const b = await chromium.launch({ channel: 'chrome' });
+  if (process.env.GHOST_ONLY) {await verifyGhosts(b);await b.close();return;}
+  if (process.env.REVIEW_ONLY) {if(!process.env.BOARD_ONLY)await rollRecovery(b);await reviewBoard(b);await verifyGhosts(b);await b.close();return;}
   if (process.env.REJOIN_ONLY) {await rejoinScenario(b);await b.close();if(errors.length)throw Error(JSON.stringify(errors));return;}
   if (!process.env.RECOVERY_ONLY) await autoFlow(b);
   await recovery(b, 'drop');
   await recovery(b, 'reject');
+  await rollRecovery(b);
+  await reviewBoard(b);
+  await verifyGhosts(b);
   if (process.env.T2_ONLY) { await b.close(); return; }
   const A = await mk(b, 'Алиса');
   const B = await mk(b, 'Борис');

@@ -170,6 +170,9 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     return s;
   }, [legal, canInteract, mover, viewer, variant]);
 
+  const dimSet = useRef(new Set<Loc>());
+  if (!busy) dimSet.current = movable;
+
   // Auto-select when only one checker can move.
   useEffect(() => {
     if (movable.size === 1 && !selected) setSelected([...movable][0]);
@@ -243,10 +246,10 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   const DOUBLE_MS = 2000;
   useEffect(() => {
-    if (!rollActor || !st.autoRoll || doubled) return;
+    if (!rollActor || !st.autoRoll || doubled || g.conn !== 'open') return;
     const id = setTimeout(doRoll, mayDouble ? DOUBLE_MS : 450);
     return () => clearTimeout(id);
-  }, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq, doubled]);
+  }, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq, doubled, g.conn]);
 
   const [shaking, setShaking] = useState(false);
   const [impulse, setImpulse] = useState(0);
@@ -468,6 +471,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
           theme={st.theme}
           moveMs={mMs}
           movable={movable}
+          dimMovable={dimSet.current}
           hints={st.hints}
           selected={selected}
           targets={targets}

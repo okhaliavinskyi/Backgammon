@@ -30,6 +30,7 @@ export interface BoardProps {
   moveMs: number;
   /** Display locations whose top checker may move now. */
   movable: Set<Loc>;
+  dimMovable: Set<Loc>;
   selected: Loc | null;
   targets: Set<Loc>;
   lastMove: Set<Loc>;
@@ -143,7 +144,7 @@ interface CheckerRender {
 
 export function BoardView(p: BoardProps) {
   const g = useMemo(() => geom(p.vertical ? 660 : 800), [p.vertical]);
-  const { BOTTOM, MID_Y, VB_H, checkerPos, offPos, barPos, locAt } = g;
+  const { TOP, BOTTOM, MID_Y, VB_H, checkerPos, offPos, barPos, locAt } = g;
   const th = THEMES[p.theme];
   const uid = 'b' + p.theme;
   const idsRef = useRef<[Map<Loc, number[]> | null, Map<Loc, number[]> | null]>([null, null]);
@@ -179,7 +180,8 @@ export function BoardView(p: BoardProps) {
     if (moved.size) lastMovedRef.current = moved;
     // Draw recently moved checkers last so they fly above the others.
     const lm = lastMovedRef.current;
-    out.sort((a, b) => Number(lm.has(a.id)) - Number(lm.has(b.id)) || a.id - b.id);
+    const raised = new Set(out.filter((c) => lm.has(c.id)).map((c) => `${c.color}:${c.loc}`));
+    out.sort((a, b) => Number(raised.has(`${a.color}:${a.loc}`)) - Number(raised.has(`${b.color}:${b.loc}`)));
     return out;
   }, [p.board, p.viewer, p.variant, g]);
 
@@ -229,9 +231,6 @@ export function BoardView(p: BoardProps) {
     if (loc) p.onLocClick(loc);
   };
 
-  const dimSet = useRef(p.movable);
-  // Keep the legal movable set while a fragment is animating.
-  if (p.movable.size || p.targets.size) dimSet.current = p.movable;
   const ms = p.moveMs;
 
   return (
@@ -264,21 +263,15 @@ export function BoardView(p: BoardProps) {
       {[...(p.hints ? p.targets : [])].map((loc) => {
         if (loc === 'off') {
           return <g key="t-off" data-hint="target-off" pointerEvents="none">
-            <rect x={TRAY_X + 3} y={MID_Y + 4} width={TRAY_W - 6} height={BOTTOM - MID_Y - 7} rx="8" fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
-            <rect x={TRAY_X + 3} y={MID_Y + 4} width={TRAY_W - 6} height={BOTTOM - MID_Y - 7} rx="8" fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+            <rect x={TRAY_X + 3} y={p.mover === p.viewer ? MID_Y + 4 : TOP + 3} width={TRAY_W - 6} height={BOTTOM - MID_Y - 7} rx="8" fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+            <rect x={TRAY_X + 3} y={p.mover === p.viewer ? MID_Y + 4 : TOP + 3} width={TRAY_W - 6} height={BOTTOM - MID_Y - 7} rx="8" fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
           </g>;
         }
         const slot = Number(loc.slice(1));
-        const n = checkers.filter((c) => c.loc === loc).length;
-        const pos = checkerPos(slot, n, n + 1);
-        return (
-          <g key={'t' + loc} data-hint="target" pointerEvents="none">
-            <path d={pointPath(slot, g)} fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
-            <path d={pointPath(slot, g)} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
-            <circle cx={pos.x} cy={pos.y} r={R - 3} fill={`url(#${uid}-ck-${p.mover === 0 ? 'white' : 'black'})`} fillOpacity="0.45" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
-            <circle cx={pos.x} cy={pos.y} r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
-          </g>
-        );
+        return <g key={'point-' + loc} pointerEvents="none">
+          <path d={pointPath(slot, g)} fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+          <path d={pointPath(slot, g)} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+        </g>;
       })}
 
       {/* checkers */}
@@ -296,7 +289,7 @@ export function BoardView(p: BoardProps) {
             data-loc={c.loc}
             data-color={c.color}
             className={'ck' + (isGhost ? ' dragging' : '')}
-            style={{ opacity: p.hints && p.mover === c.color && dimSet.current.size > 0 && !(c.top && dimSet.current.has(c.loc)) ? th.dim : 1, transform: `translate(${x}px, ${y}px)`, transitionDuration: isGhost ? '0ms' : `${ms}ms` }}
+            style={{ opacity: p.hints && p.mover === c.color && p.dimMovable.size > 0 && !(c.top && p.dimMovable.has(c.loc)) ? th.dim : 1, transform: `translate(${x}px, ${y}px)`, transitionDuration: isGhost ? '0ms' : `${ms}ms` }}
             pointerEvents="none"
           >
             {c.slab ? (
@@ -321,6 +314,15 @@ export function BoardView(p: BoardProps) {
             )}
           </g>
         );
+      })}
+      {/* Landing ghosts sit above occupied stacks and replace an opposing blot. */}
+      {[...(p.hints ? p.targets : [])].filter((loc) => loc.startsWith('s')).map((loc) => {
+        const n = checkers.filter((c) => c.loc === loc && c.color === p.mover).length;
+        const pos = checkerPos(Number(loc.slice(1)), n, n + 1);
+        return <g key={'ghost-' + loc} data-hint="target" data-target={loc} pointerEvents="none">
+          <circle cx={pos.x} cy={pos.y} r={R - 3} fill={`url(#${uid}-ck-${p.mover === 0 ? 'white' : 'black'})`} fillOpacity="0.45" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+          <circle cx={pos.x} cy={pos.y} r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+        </g>;
       })}
       </g>
     </svg>

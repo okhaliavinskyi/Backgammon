@@ -38,7 +38,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   const noSeat = full && !info?.seatsOffline;
   const rejoin = full && !!info?.seatsOffline;
   const ready = info?.exists && !noSeat && (hasToken || (!info.hasPassword && !rejoin) || password !== null);
-  const helloName = useSettings((s) => s.name) || (rejoin && info?.offlineName) || T.you;
+  const helloName = useSettings((s) => s.name) || (rejoin && info?.offlineName) || localStorage.getItem('nardy.name.' + id) || T.you;
 
   useEffect(() => {
     if (!ready || fatal) return;
@@ -75,7 +75,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
       <button className="link" onClick={() => nav('/online')}>← {T.back}</button>
       <h2>{T.rejoinAs} {info.offlineName}</h2>
       {fatal === 'bad_password' && <p className="error">{T.badPassword}</p>}
-      <form onSubmit={(e) => { e.preventDefault(); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
+      <form onSubmit={(e) => { e.preventDefault(); localStorage.setItem('nardy.name.' + id, helloName); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
         {info.hasPassword && <label className="field">
           <span>{T.password}</span>
           <input type="password" autoFocus value={pwInput} onChange={(e) => setPwInput(e.target.value)} />
