@@ -17,7 +17,7 @@
 | `worker` | Cloudflare Worker + Durable Objects (`RoomDO`, `LobbyDO`) |
 | `docs/` | [SPEC](docs/SPEC.md) · [PLAN](docs/PLAN.md) · [DEPLOY](docs/DEPLOY.md) · [REVIEW](docs/REVIEW.md) |
 | `e2e/` | Браузерный e2e на Playwright |
-| `deploy/github-workflows/` | CI и деплой для GitHub Actions — перенести в `.github/workflows` (см. DEPLOY) |
+| `.github/workflows/` | CI (`ci.yml`) и автодеплой в Cloudflare при push в `main` (`deploy.yml`) |
 
 ## Быстрый старт
 ```bash

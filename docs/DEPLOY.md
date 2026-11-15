@@ -4,19 +4,13 @@
 
 ## Однократная настройка (≈5 минут)
 
-0. **Включить CI/CD-workflow'ы.** Файлы лежат в `deploy/github-workflows/`. Сессия, в которой создавался проект, не имела права GitHub `workflow` и не могла положить их в `.github/workflows` сама. Перенесите их одной командой:
-   ```bash
-   mkdir -p .github && git mv deploy/github-workflows .github/workflows && git commit -m "Enable CI/CD" && git push
-   ```
-   Или через веб-интерфейс GitHub: *Add file → Create new file* → путь `.github/workflows/ci.yml` → вставить содержимое. Затем то же для `deploy.yml`.
-
 1. **Account ID.** Cloudflare Dashboard → *Workers & Pages* → справа *Account ID* → скопировать.
 2. **API Token.** Dashboard → *My Profile* → *API Tokens* → *Create Token* → шаблон **«Edit Cloudflare Workers»** → *Account Resources*: свой аккаунт → *Continue* → *Create Token* → скопировать.
 3. **Поддомен workers.dev.** *Workers & Pages* → *Overview*. Если поддомен ещё не выбран, Cloudflare предложит его создать (например, `oleg.workers.dev`).
 4. **Секреты в GitHub.** Репозиторий → *Settings* → *Secrets and variables* → *Actions* → *New repository secret*:
    - `CLOUDFLARE_API_TOKEN` — токен из шага 2;
    - `CLOUDFLARE_ACCOUNT_ID` — ID из шага 1.
-5. Слить изменения в `main` (или *Actions → Deploy to Cloudflare → Run workflow*).
+5. Запушить в `main` (или *Actions → Deploy to Cloudflare → Run workflow*).
 
 Workflow `deploy.yml` прогоняет тесты, собирает клиент, выполняет `wrangler deploy` и проверяет `/api/health`. Адрес игры (`https://nardy.<поддомен>.workers.dev`) появится в *Summary* запуска.
 
@@ -24,6 +18,9 @@ Workflow `deploy.yml` прогоняет тесты, собирает клиен
 
 ## Свой домен (необязательно)
 *Workers & Pages* → `nardy` → *Settings* → *Domains & Routes* → *Add* → *Custom domain*.
+
+## Автоматическая настройка одним скриптом
+`scripts/go-live.sh` проходит все шаги сам: проверки, первый деплой, секреты, ветку `main`, ожидание CI и e2e против прода.
 
 ## Ручной деплой с компьютера
 ```bash
