@@ -880,7 +880,7 @@ input:focus {
 .phone-game .game-top { gap: 8px; padding-top: 0; }
 .phone-game .score { grid-template-columns: 1fr; gap: 3px; }
 .phone-game .score small { font-size: 11px; }
-.board-wrap.compact-board { min-height: 0; aspect-ratio: 1000 / 1100; width: min(100%, calc((100dvh - 290px) * 1000 / 1100)); margin-top: clamp(12px, 7dvh, 56px); --die: 8cqw; }
+.board-wrap.compact-board { min-height: 0; aspect-ratio: 1000 / 1100; width: min(100%, calc((100dvh - 290px) * 1000 / 1100)); margin-top: 0; --die: 8cqw; }
 .mobile-hud { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 10px; margin-top: 8px; }
 .mobile-hud .pbar { position: relative; flex-direction: row; justify-content: flex-start; text-align: left; padding: 12px 10px; gap: 8px; border-radius: 10px; background: rgba(255,255,255,.025); border-color: rgba(255,255,255,.07); box-shadow: none; }
 .mobile-hud .pbar.active { border-color: color-mix(in srgb, var(--accent) 28%, transparent); }
