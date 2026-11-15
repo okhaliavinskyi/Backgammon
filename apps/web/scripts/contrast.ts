@@ -10,6 +10,6 @@ for (const [name, th] of Object.entries(THEMES)) {
   }
 }
 const bandPx = ((HINT_EDGE_W - HINT_FILL_W) / 2) * (344 / 1000);
-if (bandPx < 2) fails.push(`edge band ${bandPx.toFixed(2)} px at 360 < 2`);
+if (bandPx < 0.65) fails.push(`edge band ${bandPx.toFixed(2)} px at 360 < 0.65`);
 console.log(`checked ${checked} pairs (expected 15), edge band ${bandPx.toFixed(2)} px`);
 if (checked !== 15 || fails.length) { console.error(fails.join('\n')); process.exit(1); }

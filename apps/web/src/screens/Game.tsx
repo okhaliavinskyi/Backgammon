@@ -616,7 +616,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
       {compact && playerBar(viewer, true)}
       <div className="controls">
         <span className="status">{statusText}</span>
-        {pending && !sent && (
+        {pending && !sent && pending.chains.length > 0 && (
           <>
             {sendAt !== null ? (
               <button className="btn primary undo-send" onClick={undo}>

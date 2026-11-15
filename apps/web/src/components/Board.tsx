@@ -60,10 +60,10 @@ const Defs = ({ th, id }: { th: BoardTheme; id: string }) => (
       <feComposite in2="SourceGraphic" operator="in" />
     </filter>
     <filter id={`${id}-shadow`} x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000" floodOpacity="0.45" />
+      <feDropShadow dx="0" dy="2" stdDeviation="1.8" floodColor="#000" floodOpacity="0.25" />
     </filter>
     <filter id={`${id}-lift`} x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#000" floodOpacity="0.45" />
+      <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#000" floodOpacity="0.28" />
     </filter>
     <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="4" result="b" />
@@ -272,8 +272,7 @@ export function BoardView(p: BoardProps) {
         }
         const slot = Number(loc.slice(1));
         return <g key={'point-' + loc} pointerEvents="none">
-          <path d={pointPath(slot, g)} fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
-          <path d={pointPath(slot, g)} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+          <path d={pointPath(slot, g)} fill={th.hint.fill} fillOpacity="0.10" />
         </g>;
       })}
 
@@ -304,12 +303,12 @@ export function BoardView(p: BoardProps) {
                 <circle r={R - 15} fill="none" stroke={col.ring} strokeWidth="1.2" opacity="0.55" /></>}
                 {(movable || selected) && (
                   <g data-hint={selected ? 'selected' : 'movable'}>
-                    <circle r={R - 3} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 4 : 0)} />
-                    <circle r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 4 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 2 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 2 : 0)} />
                   </g>
                 )}
                 {c.top && c.count > 5 && (
-                  <text y="0" dominantBaseline="central" fontSize="26" fontWeight="700" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
+                  <text y="0" dominantBaseline="central" fontSize="22" fontWeight="600" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
                     {c.count}
                   </text>
                 )}
@@ -323,7 +322,7 @@ export function BoardView(p: BoardProps) {
         const n = checkers.filter((c) => c.loc === loc && c.color === p.mover).length;
         const pos = checkerPos(Number(loc.slice(1)), n, n + 1);
         return <g key={'ghost-' + loc} data-hint="target" data-target={loc} pointerEvents="none">
-          <circle cx={pos.x} cy={pos.y} r={R - 3} fill={`url(#${uid}-ck-${p.mover === 0 ? 'white' : 'black'})`} fillOpacity="0.45" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+          <circle cx={pos.x} cy={pos.y} r={R - 3} fill={`url(#${uid}-ck-${p.mover === 0 ? 'white' : 'black'})`} fillOpacity="0.22" stroke={th.hint.edge} strokeOpacity="0.6" strokeWidth={HINT_EDGE_W} />
           <circle cx={pos.x} cy={pos.y} r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
         </g>;
       })}
