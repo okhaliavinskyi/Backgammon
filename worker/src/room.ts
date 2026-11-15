@@ -173,6 +173,12 @@ export class RoomDO extends DurableObject<Env> {
 
   private async onHello(ws: WebSocket, msg: Extract<ClientMsg, { t: 'hello' }>): Promise<void> {
     const s = this.s!;
+    const current = (ws.deserializeAttachment() as Attachment).seat;
+    if (current !== null) {
+      // Already seated on this socket: never let one connection take a second seat.
+      this.send(ws, { t: 'welcome', you: current, token: s.seats[current]!.token });
+      return this.persistAndBroadcast(ws);
+    }
     const name = sanitizeName(msg.name);
     let seat: Color | null = null;
     // Reconnect by token.
@@ -361,7 +367,12 @@ export class RoomDO extends DurableObject<Env> {
 
   private async onAlarmWork(now: number): Promise<void> {
     const s = this.s!;
-    if (now >= s.lastActivity + IDLE_MS) return this.destroy();
+    if (now >= s.lastActivity + IDLE_MS) {
+      const anyoneHere = this.ctx.getWebSockets().some((w) => (w.deserializeAttachment() as Attachment)?.seat !== null);
+      if (!anyoneHere) return this.destroy();
+      s.lastActivity = now; // players are connected and thinking — keep the room alive
+      await this.save();
+    }
     let changed = false;
     if (s.match && s.nextGameAt !== null && now >= s.nextGameAt && s.match.phase === 'gameover') {
       s.match = applyAction(s.match, { type: 'next', player: 0 }, cryptoRng);

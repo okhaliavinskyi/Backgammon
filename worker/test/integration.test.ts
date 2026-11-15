@@ -161,3 +161,19 @@ describe('room server', () => {
     expect(r).toEqual({ exists: false });
   });
 });
+
+describe('hardening', () => {
+  it('a second hello on the same socket cannot take the other seat', async () => {
+    const r = await fetch(`${process.env.NARDY_URL ?? 'http://127.0.0.1:8787'}/api/rooms`, { method: 'POST', body: JSON.stringify({ settings: { isPublic: false } }) });
+    const { id } = (await r.json()) as { id: string };
+    const a = new Client();
+    await a.open(id);
+    a.send({ t: 'hello', name: 'A' });
+    await a.wait((m) => m.t === 'welcome');
+    a.send({ t: 'hello', name: 'A2' });
+    const w2 = await a.wait((m) => m.t === 'welcome');
+    expect(w2).toMatchObject({ you: 0 });
+    const info = await (await fetch(`${process.env.NARDY_URL ?? 'http://127.0.0.1:8787'}/api/rooms/${id}`)).json();
+    expect(info).toMatchObject({ seatsTaken: 1, status: 'waiting' });
+  });
+});

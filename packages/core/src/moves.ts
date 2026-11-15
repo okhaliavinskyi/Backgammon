@@ -87,6 +87,8 @@ function violatesBlockRule(board: Board, me: Color, landed: number): boolean {
 export function tryStep(ts: TurnState, from: number, die: number): Step | null {
   const { board, player: me, variant } = ts;
   const mine = board.pts[me];
+  if (!Number.isInteger(die) || die < 1 || die > 6) return null;
+  if (from !== BAR && !(Number.isInteger(from) && from >= 0 && from < 24)) return null;
   if (variant === 'short' && board.bar[me] > 0) {
     if (from !== BAR) return null;
   } else if (from === BAR) return null;

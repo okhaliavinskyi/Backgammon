@@ -192,7 +192,8 @@ function settle(m: MatchState, winner: Color, multiplier: number, cubeValue: num
   const result: GameResult = { winner, points, multiplier, cube: cubeValue, kind };
   m.result = result;
   m.score[winner] += points;
-  m.event = { type: 'gameover', result };
+  // Keep the final 'moved' event so clients can animate the winning move; m.result carries the outcome.
+  if (kind !== 'normal') m.event = { type: 'gameover', result };
   m.remaining = [];
   if (kind === 'timeout' || m.score[winner] >= m.settings.matchLength) {
     if (kind === 'timeout') m.score[winner] = Math.max(m.score[winner], m.settings.matchLength);
