@@ -1,4 +1,5 @@
 // Browser e2e: two players online (password, lobby, reconnect, chat, emoji, resign) + shake-to-roll on a phone.
+// PREVIEW_ONLY=1: current online 360x780 hints/undo screenshots in all themes.
 // Usage: npm run build && (cd worker && npx wrangler dev) & node e2e/online.e2e.cjs [screenshot-dir]
 const { chromium, devices } = require('playwright');
 const OUT = process.argv[2] || 'e2e-shots';
@@ -313,7 +314,7 @@ async function verifyGhosts(b) {
  await p.locator('[data-hint="target"] circle').first().waitFor();
  if((await p.locator('svg').getAttribute('viewBox'))!=='0 0 876 800')throw Error('empty tray reserved space');
  if(await p.locator('[data-selected-mark]').count()!==1)throw Error('selected checker badge missing');
- if((await p.locator('[data-point-seat="9"]').getAttribute('stroke'))!=='url(#bwood-frame)')throw Error('seat does not use frame material');
+ if((await p.locator('[data-field-surface]').first().getAttribute('y'))!=='53')throw Error('rounded point bed must expose frame material');
  const cy=await p.locator('[data-hint="target"] circle').first().getAttribute('cy');if(cy!=='53')throw Error('hit ghost y '+cy+' expected 53');
  await p.evaluate(()=>window.reviewRender('stack'));await p.locator('[data-target="s17"]').waitFor();
  const layer=await p.locator('[data-target="s17"]').evaluate(g=>{const cs=[...document.querySelectorAll('g.ck')];return {y:g.querySelector('circle').getAttribute('cy'),above:!!(cs.at(-1).compareDocumentPosition(g)&Node.DOCUMENT_POSITION_FOLLOWING)}});
@@ -324,7 +325,72 @@ async function verifyGhosts(b) {
  console.log('ghosts: hit y=53; 10-stack landing y=285 above checkers; opponent tray y=27');await p.close();fs.rmSync(dir,{recursive:true});
 }
 
+async function captureThemes() {
+ const prefix=process.env.PREVIEW_PREFIX || 'handover';
+ require('fs').mkdirSync('docs/design/impl-screens',{recursive:true});
+ const b=await chromium.launch({channel:'chrome'});
+ for(const theme of ['wood','minimal','malachite']){
+   const pages=[];
+   for(const name of ['Алиса','Борис']) {
+     const p=await mk(b,name,{viewport:{width:360,height:780},isMobile:true,hasTouch:true});
+     await p.evaluate(theme=>{const s=JSON.parse(localStorage.getItem('nardy.settings'));s.state.theme=theme;s.state.speed='instant';localStorage.setItem('nardy.settings',JSON.stringify(s))},theme);pages.push(p);
+   }
+   const response=await fetch(BASE+'/api/rooms',{method:'POST',body:JSON.stringify({settings:{variant:'short',matchLength:3,cube:false,isPublic:false,moveTimer:15,bank:180}})}),{id}=await response.json();
+   for(const p of pages)await p.goto(BASE+'/r/'+id);
+   for(const p of pages)await p.waitForSelector('.board-svg');
+   const p=(await pages[0].locator('.status:has-text("Ваш ход")').count())?pages[0]:pages[1];
+   await p.locator('[data-hint="movable"]').first().waitFor();
+   const ringCount=await p.locator('[data-hint="movable"]').count();
+   // Opening short games have several candidates. Select one with multiple destinations.
+   for(let i=0;i<ringCount;i++){
+     const before=await p.locator('[data-pips="me"]').textContent();
+     const ring=p.locator('[data-hint="movable"]').nth(i);if(!await ring.count())break;
+     await tap(p,ring);await p.waitForTimeout(50);
+     if(await p.locator('[data-hint="target"]').count())break;
+     if((await p.locator('[data-pips="me"]').textContent())!==before){await p.getByRole('button',{name:'↶ Отменить',exact:true}).click();await p.waitForTimeout(50)}
+   }
+   await p.locator('[data-hint="target"]').first().waitFor();
+   const measured=await p.evaluate(()=>{const r=document.querySelector('.board-wrap').getBoundingClientRect(),h=document.querySelector('.mobile-hud').getBoundingClientRect();return {top:r.top,width:r.width,height:r.height,bottomGap:innerHeight-h.bottom,movable:document.querySelectorAll('[data-hint="movable"]').length,selected:document.querySelectorAll('[data-hint="selected"]').length,targets:document.querySelectorAll('[data-hint="target"]').length,rims:document.querySelectorAll('[data-checker-rim]').length}});
+   if(Math.abs(measured.top-66.1875)>.1||Math.abs(measured.width-344)>.1||Math.abs(measured.height-431.953125)>.1||Math.abs(measured.bottomGap-12)>.1||measured.rims!==30)throw Error('preview geometry/rims '+JSON.stringify(measured));
+   for(const kind of ['movable','selected','target','seat']){
+     await p.evaluate(kind=>{
+       const svg=document.querySelector('.board-svg'),node=svg.querySelector(kind==='seat'?'[data-point-seat="9"]':`[data-hint="${kind}"]`),rect=node.getBoundingClientRect();
+       const center=kind==='seat'?new DOMPoint(184,Number(svg.getAttribute('viewBox').split(' ')[3])-53):new DOMPoint(rect.x+rect.width/2,rect.y+rect.height/2).matrixTransform(svg.getScreenCTM().inverse());
+       const panel=document.createElement('div');panel.id='hint-detail';panel.style.cssText='position:fixed;left:0;top:0;width:180px;height:180px;z-index:99999;background:#11151d';
+       const clone=svg.cloneNode(true);clone.removeAttribute('class');clone.setAttribute('viewBox',kind==='seat'?`${center.x-46} ${center.y-32} 92 92`:`${center.x-42} ${center.y-42} 84 84`);clone.style.cssText='width:180px;height:180px;display:block';panel.append(clone);document.body.append(panel);
+     },kind);
+     await p.locator('#hint-detail').screenshot({path:`docs/design/impl-screens/${prefix}-detail-${kind}-${theme}.png`});
+     await p.evaluate(()=>document.querySelector('#hint-detail').remove());
+   }
+   const bed=await p.locator('[data-field-surface]').first().getAttribute('y');if(bed!=='53')throw Error('frame bed not exposed '+bed);if(await p.locator('[data-selected-mark]').count()!==1)throw Error('selected badge missing');
+   await p.mouse.move(0,0);await p.screenshot({path:`docs/design/impl-screens/${prefix}-hints-360-${theme}.png`});
+   const beforeUndo=await finishPending(p);
+   await p.locator('button.undo-send').waitFor();
+   await p.screenshot({path:`docs/design/impl-screens/${prefix}-undo-360-${theme}.png`});
+   await p.locator('button.undo-send').click();await p.locator('button.undo-send').waitFor({state:'hidden'});
+   const afterUndo=await p.locator('[data-pips="me"]').textContent();if(afterUndo!==beforeUndo)throw Error(`undo ${beforeUndo} -> ${afterUndo}`);
+   const urlBefore=p.url();
+   await p.evaluate(()=>{window.__previewBoard=document.querySelector('.board-svg')});
+   await p.getByRole('button',{name:'Настройки',exact:true}).click();
+   const settings=p.getByRole('dialog',{name:'Настройки',exact:true});await settings.waitFor();
+   const hintToggle=settings.getByRole('checkbox',{name:'Подсказки ходов',exact:true});
+   await hintToggle.uncheck();
+   if(await p.evaluate(()=>JSON.parse(localStorage.getItem('nardy.settings')).state.hints))throw Error('settings did not persist hints off');
+   await hintToggle.check();
+   if(await settings.evaluate(element=>element.scrollWidth-element.clientWidth)>1)throw Error('settings horizontal overflow');
+   await p.screenshot({path:`docs/design/impl-screens/${prefix}-settings-360-${theme}.png`});
+   await p.keyboard.press('Escape');await settings.waitFor({state:'hidden'});
+   if(p.url()!==urlBefore||!await p.evaluate(()=>window.__previewBoard===document.querySelector('.board-svg')))throw Error('settings exited or remounted game');
+   const boardAfter=await p.locator('.board-wrap').boundingBox();
+   if(Math.abs(boardAfter.y-measured.top)>.1||Math.abs(boardAfter.width-measured.width)>.1||Math.abs(boardAfter.height-measured.height)>.1)throw Error('settings changed board geometry');
+   console.log(theme+' '+JSON.stringify(measured)+' undo restored '+afterUndo+'; settings persisted and returned to same mounted board');
+   for(const page of pages)await page.context().close();
+ }
+ await b.close();console.log('console errors '+errors.length+' on 6 online pages');if(errors.length)throw Error(errors.join('\n'));
+}
+
 (async () => {
+  if (process.env.PREVIEW_ONLY) { await captureThemes(); return; }
   if (process.env.STATES_ONLY) { await verifyStates(); return; }
   if (process.env.LAYOUT_ONLY) { await verifyLayouts(); await verifyInput(); return; }
   if (process.env.INPUT_ONLY) { await verifyInput(); return; }

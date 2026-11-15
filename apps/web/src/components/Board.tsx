@@ -105,26 +105,19 @@ const StaticBoard = memo(function StaticBoard({ th, id, g, showTray }: { th: Boa
   ];
   return (
     <g>
-      <rect x="0" y="0" width={width} height={VB_H} rx="18" fill={`url(#${id}-frame)`} />
+      <rect data-frame-surface x="0" y="0" width={width} height={VB_H} rx="18" fill={`url(#${id}-frame)`} />
       {th.fieldTexture === 'wood' && <rect x="0" y="0" width={width} height={VB_H} rx="18" fill="#000" filter={`url(#${id}-grain)`} opacity="0.55" />}
       {fieldRects.map((f, i) => (
         <g key={i}>
-          <rect x={f.x} y={TOP} width={f.w} height={BOTTOM - TOP} fill={th.field} />
-          {th.fieldTexture === 'wood' && <rect x={f.x} y={TOP} width={f.w} height={BOTTOM - TOP} fill="#000" filter={`url(#${id}-grain)`} opacity="0.35" />}
-          {th.fieldTexture === 'malachite' && <rect x={f.x} y={TOP} width={f.w} height={BOTTOM - TOP} fill="#000" filter={`url(#${id}-malachite)`} opacity="0.9" />}
+          <rect data-field-surface x={f.x} y={TOP + R} width={f.w} height={BOTTOM - TOP - 2 * R} fill={th.field} />
+          {th.fieldTexture === 'wood' && <rect x={f.x} y={TOP + R} width={f.w} height={BOTTOM - TOP - 2 * R} fill="#000" filter={`url(#${id}-grain)`} opacity="0.35" />}
+          {th.fieldTexture === 'malachite' && <rect x={f.x} y={TOP + R} width={f.w} height={BOTTOM - TOP - 2 * R} fill="#000" filter={`url(#${id}-malachite)`} opacity="0.9" />}
           <rect x={f.x + 3} y={TOP + 3} width={f.w - 6} height={BOTTOM - TOP - 6} fill="none" stroke={th.inlay} strokeOpacity="0.35" strokeWidth="1.5" />
         </g>
       ))}
       {Array.from({ length: 24 }, (_, s) => (
-        <path key={s} d={pointPath(s, g)} fill={s % 2 === 0 ? th.pointA : th.pointB} stroke={th.pointStroke} strokeWidth="1" />
+        <path key={s} data-point-seat={s} d={pointPath(s, g)} fill={s % 2 === 0 ? th.pointA : th.pointB} stroke={th.pointStroke} strokeWidth="1" />
       ))}
-      {Array.from({ length: 24 }, (_, slot) => {
-        const cy = isTop(slot) ? TOP + R : BOTTOM - R;
-        return <g key={'seat-' + slot} pointerEvents="none">
-          <circle data-point-seat={slot} cx={slotX(slot)} cy={cy} r={R} fill="none" stroke={`url(#${id}-frame)`} strokeWidth="6" />
-          {th.fieldTexture === 'wood' && <circle cx={slotX(slot)} cy={cy} r={R} fill="none" stroke="#000" strokeWidth="6" filter={`url(#${id}-grain)`} opacity="0.55" />}
-        </g>;
-      })}
       <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill={th.bar} />
       {th.fieldTexture === 'wood' && <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill="#000" filter={`url(#${id}-grain)`} opacity="0.5" />}
       <line x1={BAR_X + BAR_W / 2} y1={TOP + 8} x2={BAR_X + BAR_W / 2} y2={BOTTOM - 8} stroke={th.inlay} strokeOpacity="0.4" strokeDasharray="2 10" />

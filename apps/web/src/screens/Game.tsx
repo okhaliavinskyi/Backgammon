@@ -19,6 +19,7 @@ import {
   turnState,
   type Memo,
 } from '@nardy/core';
+import { SettingsScreen } from './Menus';
 import { BoardView } from '../components/Board';
 import { Cube, DiceCup, Die } from '../components/Dice';
 import { FIELD_END, FRAME, Loc, locOf, posOfSlot } from '../components/geometry';
@@ -369,6 +370,9 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   const canClaim = g.mode === 'online' && oppSlot && !oppSlot.connected && oppSlot.disconnectedAt !== null && serverNow - oppSlot.disconnectedAt > CLAIM_AFTER_MS && m.phase !== 'matchover';
 
   const [confirmResign, setConfirmResign] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (settingsOpen) settingsDialog.current?.showModal(); }, [settingsOpen]);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -468,13 +472,17 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {m.crawford ? ` · ${T.crawford}` : ''}
           </small>
         </div>
-        {g.mode === 'online' && !compact ? (
-          <button className="icon-btn" onClick={() => setChatOpen((o) => !o)} aria-label={T.chat}>
-            💬{g.chat.length > 0 && !chatOpen ? <i className="dot" /> : null}
+        <div className="game-top-actions">
+          {g.mode === 'online' && !compact && <button className="icon-btn" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
+            💬{g.chat.length > 0 && !chatOpen && <i className="dot" />}
+          </button>}
+          <button className="icon-btn settings-button" aria-label={T.settings} onClick={() => setSettingsOpen(true)}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="m9.5 3-.7 2.4-1.6.9-2.4-.6-2.5 4.4 1.8 1.8v1.9l-1.8 1.8 2.5 4.3 2.4-.6 1.6 1 .7 2.4h5l.7-2.4 1.6-1 2.4.6 2.5-4.3-1.8-1.8v-1.9l1.8-1.8-2.5-4.4-2.4.6-1.6-.9-.7-2.4z" />
+              <circle cx="12" cy="12.8" r="3.2" />
+            </svg>
           </button>
-        ) : (
-          <span className="icon-btn ghost" />
-        )}
+        </div>
       </header>
 
       {!compact && playerBar(opp)}
@@ -730,6 +738,10 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
           </form>
         </aside>
       )}
+
+      {settingsOpen && <dialog ref={settingsDialog} className="game-settings" aria-label={T.settings} onClose={() => setSettingsOpen(false)} onClick={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
+        <SettingsScreen nav={() => setSettingsOpen(false)} />
+      </dialog>}
 
       {confirmResign && (
         <div className="modal-layer">
