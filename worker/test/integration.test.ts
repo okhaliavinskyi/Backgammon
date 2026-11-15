@@ -163,6 +163,50 @@ describe('room server', () => {
 });
 
 describe('hardening', () => {
+const BASE2 = process.env.NARDY_URL ?? 'http://127.0.0.1:8787';
+async function fullRoom(password?: string) {
+  const r = await fetch(`${BASE2}/api/rooms`, { method: 'POST', body: JSON.stringify({ settings: { isPublic: false, moveTimer: 0, bank: 0 }, password }) });
+  const { id } = (await r.json()) as { id: string };
+  const a = new Client(); await a.open(id); a.send({ t: 'hello', name: 'Alice', password });
+  const wa = (await a.wait((m) => m.t === 'welcome')) as Extract<ServerMsg, { t: 'welcome' }>;
+  const b = new Client(); await b.open(id); b.send({ t: 'hello', name: 'Bob', password });
+  const wb = (await b.wait((m) => m.t === 'welcome')) as Extract<ServerMsg, { t: 'welcome' }>;
+  await a.wait((m) => m.t === 'state' && !!m.match);
+  return { id, a, b, wa, wb };
+}
+const info = async (id: string) => (await fetch(`${BASE2}/api/rooms/${id}`)).json();
+const settle = () => new Promise((r) => setTimeout(r, 300));
+const reply = (c: Client) => c.wait((m) => m.t === 'welcome' || m.t === 'error');
+
+it('both online: no token → room_full, info says 0 offline', async () => {
+  const { id } = await fullRoom('pw');
+  expect(await info(id)).toMatchObject({ seatsTaken: 2, seatsOffline: 0, offlineName: null });
+  const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Eve', password: 'pw' });
+  expect(await reply(c)).toMatchObject({ t: 'error', code: 'room_full' });
+});
+
+it('offline seat: no token + right password → takes the seat, old token dead', async () => {
+  const { id, b, wb } = await fullRoom('pw');
+  b.ws.close(); await settle();
+  const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Bob2', password: 'pw' });
+  const w = await reply(c);
+  expect(w).toMatchObject({ t: 'welcome', you: 1 });
+  expect((w as Extract<ServerMsg, { t: 'welcome' }>).token).not.toBe(wb.token);
+  c.ws.close(); await settle();
+  // A live old token would be welcomed regardless of password; bad_password proves it no longer matches.
+  const old = new Client(); await old.open(id); old.send({ t: 'hello', name: 'Bob', token: wb.token, password: 'nope' });
+  expect(await reply(old)).toMatchObject({ t: 'error', code: 'bad_password' });
+});
+
+it('offline seat: info names it; wrong password → bad_password, seat untouched', async () => {
+  const { id, b } = await fullRoom('pw');
+  b.ws.close(); await settle();
+  expect(await info(id)).toMatchObject({ seatsOffline: 1, offlineName: 'Bob' });
+  const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Eve', password: 'x' });
+  expect(await reply(c)).toMatchObject({ t: 'error', code: 'bad_password' });
+  expect(await info(id)).toMatchObject({ seatsOffline: 1, offlineName: 'Bob' });
+});
+
   it('a second hello on the same socket cannot take the other seat', async () => {
     const r = await fetch(`${process.env.NARDY_URL ?? 'http://127.0.0.1:8787'}/api/rooms`, { method: 'POST', body: JSON.stringify({ settings: { isPublic: false } }) });
     const { id } = (await r.json()) as { id: string };
