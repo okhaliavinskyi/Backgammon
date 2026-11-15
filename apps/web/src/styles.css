@@ -870,5 +870,25 @@ input:focus {
 
 .countdown { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: currentColor; opacity: .55; transform-origin: left; animation: countdown var(--ms) linear forwards; }
 @keyframes countdown { to { transform: scaleX(0); } }
-.undo-send, .center-actions .btn.gold { position: relative; overflow: hidden; }
+.undo-send, .center-actions .btn.gold, .controls .btn.gold { position: relative; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .countdown { animation: none; opacity: 0; } }
+
+.board-wrap.vertical { min-height: 0; aspect-ratio: 660 / 1000; width: min(100%, calc((100dvh - 120px) * 0.66)); --die: 8cqw; }
+.board-wrap.vertical .dice-tray, .board-wrap.vertical .dice-tray.single { top: 43.8%; }
+.board-wrap.vertical .dice-tray.right { left: 75%; }
+.board-wrap.vertical .dice-tray.left { left: 25%; }
+.board-wrap.vertical .center-actions { top: 72%; left: 50%; }
+.board-wrap.vertical .toast { top: 30%; left: 50%; }
+.board-wrap.vertical .ck.dragging { filter: drop-shadow(10px 0 8px rgba(0, 0, 0, 0.45)); }
+.board-wrap.vertical .cup-layer { left: 50%; top: 72%; }
+.phone-game .game-top { gap: 6px; }
+.phone-game .score { display: block; flex: none; }
+.compact-player { display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; font-size: 12px; }
+.compact-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone-game .game-top .compact-player { flex: 1; justify-content: flex-end; }
+.phone-game .controls { flex-wrap: wrap; gap: 4px; }
+.phone-game .controls .compact-player { margin-right: auto; }
+.phone-game .controls .status { flex: none; font-size: 12px; }
+.phone-game .controls .btn { padding: 8px 10px; }
+.phone-game .clock { font-size: 12px; padding: 2px 4px; }
+.phone-more { position: absolute; z-index: 10; bottom: 12px; left: 8px; right: 8px; background: var(--bg); border: 1px solid var(--panel-b); border-radius: 12px; padding: 8px; box-shadow: 0 6px 30px #0008; }

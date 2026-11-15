@@ -151,7 +151,113 @@ async function rejoinScenario(b) {
   for(const p of [a,c,d])await p.context().close();
 }
 
+async function verifyLayouts() {
+  const fs=require('fs');
+const b=await chromium.launch({channel:'chrome'});let errors=[];let count=0;
+for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite']){
+ const ctx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
+ await ctx.addInitScript(({theme})=>localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'QA',lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true,shake:true,vibration:false}})),{theme});
+ const p=await ctx.newPage();p.on('pageerror',e=>errors.push(String(e)));p.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ await p.goto('http://127.0.0.1:8787/play?mode=ai&variant=long&level=beginner');
+ await p.waitForSelector('.status:has-text("Ваш ход")');await p.waitForSelector('.dice-tray:not(.single) .die-wrap');await p.waitForTimeout(150);
+ const values=await p.evaluate(()=>{
+ const svg=document.querySelector('.board-svg'),r=svg.getBoundingClientRect();
+ let f=svg[Object.keys(svg).find(k=>k.startsWith('__reactFiber'))];while(f&&!f.memoizedProps?.movable)f=f.return;
+ const props=f?.memoizedProps;
+ const offenders=[...document.querySelectorAll('g.ck')].filter(c=>{const q=c.getBoundingClientRect();return q.left<r.left-.1||q.right>r.right+.1||q.top<r.top-.1||q.bottom>r.bottom+.1}).map(c=>c.getAttribute('data-checker')||c.getAttribute('style'));
+ const stacks=[];for(const color of [0,1])for(const loc of new Set([...svg.querySelectorAll('g.ck')].map(c=>c.dataset.loc))){const cs=[...svg.querySelectorAll(`g.ck[data-color="${color}"][data-loc="${loc}"]`)];if(cs.length>=6&&loc!=='off'){const group=document.createElementNS('http://www.w3.org/2000/svg','g');cs.forEach(c=>group.append(c.cloneNode(true)));svg.append(group);stacks.push({n:cs.length,height:group.getBBox().height});group.remove();}}
+ return {stacks,ratio:r.height/innerHeight,diameter:document.querySelector('g.ck circle').getBoundingClientRect().width,vertical:!!document.querySelector('.board-wrap.vertical'),rings:document.querySelectorAll('[data-hint="movable"]').length,expected:props?props.movable.size-(props.selected&&props.movable.has(props.selected)?1:0):null,targets:document.querySelectorAll('[data-hint="target"],[data-hint="target-off"]').length,expectedTargets:props?.targets.size,outside:offenders};});
+ console.log(width+' '+theme+' '+JSON.stringify(values));
+ if(process.env.VERTICAL_GATE){if(width===360&&(values.ratio<.65||values.diameter<30))throw Error('vertical measurement '+JSON.stringify(values));if(width!==360&&values.vertical)throw Error('expected horizontal '+width);if(values.outside.length)throw Error('checkers outside board: '+values.outside.join(','));}
+ if(stacksBad(values))throw Error('stack too high '+JSON.stringify(values));
+ if(process.env.HINT_GATE&&(values.rings!==values.expected||values.targets!==values.expectedTargets))throw Error('hint count mismatch '+JSON.stringify(values));
+ fs.mkdirSync('docs/design/impl-screens',{recursive:true});await p.screenshot({path:`docs/design/impl-screens/${process.env.TASK||'task2'}-${width}-${theme}.png`});count++;await ctx.close();
+}console.log(`console errors ${errors.length}, pages ${count}`,JSON.stringify(errors));await b.close();if(errors.length)process.exit(1);
+
+}
+function stacksBad(v){return v.stacks.some(s=>s.height>290.001)}
+async function verifyInput() {
+const b=await chromium.launch({channel:'chrome'}),c=await b.newContext({viewport:{width:360,height:780},isMobile:true,hasTouch:true});
+await c.addInitScript(()=>localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'Input',lang:'ru',theme:'wood',sound:false,speed:'instant',autoRoll:false,autoConfirm:false,hints:true}})));
+const p=await c.newPage();let errors=[];p.on('pageerror',e=>errors.push(String(e)));
+for(const mode of ['tap','drag']){
+await p.goto('http://127.0.0.1:8787/play?mode=ai&variant=short&level=beginner');await p.waitForSelector('.status:has-text("Ваш ход")');
+const roll=p.getByRole('button',{name:'🎲 Бросить',exact:true});if(await roll.count()){await roll.click()}
+await p.waitForSelector('[data-hint="movable"]');
+const before=await p.locator('[data-pips="me"]').textContent();
+let found=false;
+for(let i=0;i<8;i++){
+ const candidates=p.locator('[data-hint="movable"]');if(i>=await candidates.count())break;
+ const s=await candidates.nth(i).boundingBox();await p.mouse.click(s.x+s.width/2,s.y+s.height/2);await p.waitForTimeout(50);
+ if(await p.locator('[data-hint="target"] circle').count()){found=true;break;}
+ if((await p.locator('[data-pips="me"]').textContent())!==before){await p.getByRole('button',{name:'↶ Отменить',exact:true}).click();await p.waitForTimeout(50);}
+}
+if(!found)throw Error(mode+' source produced no targets');
+const t=await p.locator('[data-hint="target"] circle').first().boundingBox();
+if(mode==='tap')await p.mouse.click(t.x+t.width/2,t.y+t.height/2);
+else {const selected=await p.locator('[data-hint="selected"]').boundingBox();await p.mouse.move(selected.x+selected.width/2,selected.y+selected.height/2);await p.mouse.down();await p.mouse.move(t.x+t.width/2,t.y+t.height/2,{steps:10});await p.mouse.up();}
+await p.waitForTimeout(100);const after=await p.locator('[data-pips="me"]').textContent();
+if(after===before)throw Error(mode+' failed: pips unchanged '+before);
+console.log(mode+' input pips '+before+' -> '+after);
+}await p.setViewportSize({width:780,height:360});await p.waitForTimeout(50);if(await p.locator('.board-wrap.vertical').count())throw Error('landscape is vertical');console.log('landscape 780x360 horizontal; console errors '+errors.length);await b.close();if(errors.length)throw Error(errors.join('\n'));
+
+}
+
+async function verifyStates() {
+  const fs=require('fs'),path=require('path'),os=require('os');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nardy-qa-'));
+  require('child_process').execFileSync(path.resolve('node_modules/.bin/esbuild'),['packages/core/src/index.ts','--bundle','--format=esm','--platform=node','--outfile='+path.join(dir,'core.mjs')]);
+  const core=await import('file://'+path.join(dir,'core.mjs'));
+  const make=(variant)=>{let i=0;return core.newMatch({variant,matchLength:3,cube:variant==='short'},()=>[6,1][i++%2])};
+  const short=make('short');
+  const roll={...short,phase:'roll',remaining:[],dice:[],opening:null,event:null};
+  const opponent={...roll,turn:1};
+  let stack=make('long');stack.board.pts[0].fill(0);stack.board.pts[0][0]=10;stack.board.pts[0][4]=5;
+  stack=core.applyAction(stack,{type:'roll',player:0,dice:[1,2]});
+  const b=await chromium.launch({channel:'chrome'});let pageCount=0;const stateErrors=[];
+  for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite'])for(const state of ['own','opponent','roll','double','undo','stack10']){
+    const m=state==='opponent'?opponent:state==='roll'||state==='double'?roll:state==='stack10'?stack:short;
+    const ctx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
+    await ctx.addInitScript(({theme,m,state})=>{
+      localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'QA',lang:'ru',theme,sound:false,speed:'instant',autoRoll:state==='double',autoConfirm:true,hints:true,shake:false,vibration:false}}));
+      localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}));
+    },{theme,m,state});
+    const p=await ctx.newPage();p.on('pageerror',e=>stateErrors.push(String(e)));p.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});
+    if(state==='opponent'){await p.clock.install();await p.clock.pauseAt(new Date());}
+    await p.goto(BASE+'/play?resume=1');await p.waitForSelector('.board-svg');
+    if(state==='own'){
+      await p.locator('[data-hint="movable"]').first().waitFor();
+      const measured={rings:await p.locator('[data-hint="movable"]').count(),selected:await p.locator('[data-hint="selected"]').count(),expected:new Set(core.legalNextSteps(core.turnState(short)).map(step=>step.from)).size};
+      if(measured.rings+measured.selected!==measured.expected||measured.rings===0)throw Error('movable ring mismatch '+JSON.stringify(measured));
+      console.log(`${width} ${theme} short movable rings ${measured.rings} + selected ${measured.selected}, expected ${measured.expected}`);
+      await tap(p,p.locator('[data-hint="movable"]'));
+      await p.locator('[data-hint="target"]').first().waitFor();
+    }
+    if(state==='opponent'&&!(await p.locator('.status').innerText()).includes('Ход соперника'))throw Error('opponent state missing');
+    if(state==='roll')await p.getByRole('button',{name:'🎲 Бросить',exact:true}).waitFor();
+    if(state==='double'){
+      await p.locator('button.btn.gold .countdown').waitFor();
+      const started=Date.now();await p.waitForSelector('.dice-tray:not(.single) .die-wrap');
+      console.log(`${width} ${theme} double countdown rolled after ${Date.now()-started}ms`);
+      // Restore the roll state to capture the countdown itself.
+      await ctx.close();const shotCtx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
+      await shotCtx.addInitScript(({theme,m})=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},{theme,m});
+      const shot=await shotCtx.newPage();await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();await shot.screenshot({path:`docs/design/impl-screens/final-${state}-${width}-${theme}.png`});await shotCtx.close();pageCount+=2;continue;
+    }
+    if(state==='undo')await finishPending(p);
+    if(state==='stack10'){
+      const height=await p.evaluate(()=>{const cs=[...document.querySelectorAll('g.ck[data-color="0"]')].filter(c=>c.dataset.loc==='s23'),g=document.createElementNS('http://www.w3.org/2000/svg','g');cs.forEach(c=>g.append(c.cloneNode(true)));document.querySelector('svg').append(g);const h=g.getBBox().height;g.remove();return h});
+      if(height>290.001)throw Error('10-stack height '+height);console.log(`${width} ${theme} stack10 height ${height}`);
+    }
+    await p.screenshot({path:`docs/design/impl-screens/final-${state}-${width}-${theme}.png`});pageCount++;await ctx.close();
+  }
+  await b.close();fs.rmSync(dir,{recursive:true});console.log('state matrix pages '+pageCount+', console errors '+stateErrors.length);if(stateErrors.length)throw Error(stateErrors.join('\n'));
+}
+
 (async () => {
+  if (process.env.STATES_ONLY) { await verifyStates(); return; }
+  if (process.env.LAYOUT_ONLY) { await verifyLayouts(); await verifyInput(); return; }
+  if (process.env.INPUT_ONLY) { await verifyInput(); return; }
   const b = await chromium.launch({ channel: 'chrome' });
   if (process.env.REJOIN_ONLY) {await rejoinScenario(b);await b.close();if(errors.length)throw Error(JSON.stringify(errors));return;}
   if (!process.env.RECOVERY_ONLY) await autoFlow(b);

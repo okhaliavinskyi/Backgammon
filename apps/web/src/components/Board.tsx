@@ -3,27 +3,19 @@ import type { Board as BoardT, Color, Variant } from '@nardy/core';
 import {
   BAR_W,
   BAR_X,
-  BOTTOM,
-  FIELD_END,
   LEFT_X,
   Loc,
-  MID_Y,
-  POINT_LEN,
   PW,
   R,
   RIGHT_X,
   SLAB_H,
-  TOP,
   TRAY_W,
   TRAY_X,
-  VB_H,
   VB_W,
+  geom,
   assignIds,
-  barPos,
-  checkerPos,
   isTop,
   locCounts,
-  offPos,
   slotX,
 } from './geometry';
 import { BoardTheme, THEMES, HINT_FILL_W, HINT_EDGE_W } from './themes';
@@ -31,6 +23,7 @@ import type { Theme } from '../lib/settings';
 
 export interface BoardProps {
   board: BoardT;
+  vertical: boolean;
   variant: Variant;
   viewer: Color;
   theme: Theme;
@@ -49,24 +42,9 @@ export interface BoardProps {
   label?: string;
 }
 
-function locAt(x: number, y: number): Loc | null {
-  if (x >= TRAY_X && x <= TRAY_X + TRAY_W) return 'off';
-  if (x >= BAR_X && x < BAR_X + BAR_W) return 'bar';
-  const top = y < MID_Y;
-  if (x >= LEFT_X && x < BAR_X) {
-    const col = Math.floor((x - LEFT_X) / PW);
-    return 's' + (top ? 12 + col : 11 - col);
-  }
-  if (x >= RIGHT_X && x < FIELD_END) {
-    const col = Math.floor((x - RIGHT_X) / PW);
-    return 's' + (top ? 18 + col : 5 - col);
-  }
-  return null;
-}
-
 // ───────────────────────────── static board ─────────────────────────────
 
-const Defs = ({ th, id }: { th: BoardTheme; id: string }) => (
+const Defs = ({ th, id, vertical }: { th: BoardTheme; id: string; vertical: boolean }) => (
   <defs>
     <filter id={`${id}-grain`} x="0" y="0" width="100%" height="100%">
       <feTurbulence type="fractalNoise" baseFrequency="0.0035 0.09" numOctaves="3" seed="7" />
@@ -79,10 +57,10 @@ const Defs = ({ th, id }: { th: BoardTheme; id: string }) => (
       <feComposite in2="SourceGraphic" operator="in" />
     </filter>
     <filter id={`${id}-shadow`} x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000" floodOpacity="0.45" />
+      <feDropShadow dx={vertical ? 3 : 0} dy={vertical ? 0 : 3} stdDeviation="2.5" floodColor="#000" floodOpacity="0.45" />
     </filter>
     <filter id={`${id}-lift`} x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#000" floodOpacity="0.45" />
+      <feDropShadow dx={vertical ? 8 : 0} dy={vertical ? 0 : 8} stdDeviation="5" floodColor="#000" floodOpacity="0.45" />
     </filter>
     <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="4" result="b" />
@@ -105,14 +83,18 @@ const Defs = ({ th, id }: { th: BoardTheme; id: string }) => (
   </defs>
 );
 
-function pointPath(slot: number): string {
+type Geometry = ReturnType<typeof geom>;
+
+function pointPath(slot: number, g: Geometry): string {
+  const { TOP, BOTTOM, POINT_LEN } = g;
   const cx = slotX(slot);
   const half = PW / 2 - 2;
   if (isTop(slot)) return `M${cx - half},${TOP} L${cx + half},${TOP} L${cx},${TOP + POINT_LEN} Z`;
   return `M${cx - half},${BOTTOM} L${cx + half},${BOTTOM} L${cx},${BOTTOM - POINT_LEN} Z`;
 }
 
-const StaticBoard = memo(function StaticBoard({ th, id }: { th: BoardTheme; id: string }) {
+const StaticBoard = memo(function StaticBoard({ th, id, g, vertical }: { th: BoardTheme; id: string; g: Geometry; vertical: boolean }) {
+  const { TOP, BOTTOM, MID_Y, VB_H } = g;
   const fieldRects = [
     { x: LEFT_X, w: PW * 6 },
     { x: RIGHT_X, w: PW * 6 },
@@ -130,7 +112,7 @@ const StaticBoard = memo(function StaticBoard({ th, id }: { th: BoardTheme; id: 
         </g>
       ))}
       {Array.from({ length: 24 }, (_, s) => (
-        <path key={s} d={pointPath(s)} fill={s % 2 === 0 ? th.pointA : th.pointB} stroke={th.pointStroke} strokeWidth="1" />
+        <path key={s} d={pointPath(s, g)} fill={s % 2 === 0 ? th.pointA : th.pointB} stroke={th.pointStroke} strokeWidth="1" />
       ))}
       <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill={th.bar} />
       {th.fieldTexture === 'wood' && <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill="#000" filter={`url(#${id}-grain)`} opacity="0.5" />}
@@ -138,7 +120,7 @@ const StaticBoard = memo(function StaticBoard({ th, id }: { th: BoardTheme; id: 
       <rect x={TRAY_X} y={TOP} width={TRAY_W} height={BOTTOM - TOP} rx="8" fill={th.tray} />
       <line x1={TRAY_X + 8} y1={MID_Y} x2={TRAY_X + TRAY_W - 8} y2={MID_Y} stroke={th.inlay} strokeOpacity="0.45" />
       {Array.from({ length: 24 }, (_, s) => (
-        <text key={s} x={slotX(s)} y={isTop(s) ? TOP - 7 : BOTTOM + 17} fontSize="12" textAnchor="middle" fill={th.inlay} opacity="0.75" style={{ userSelect: 'none' }}>
+        <text key={s} transform={vertical ? `rotate(-90 ${slotX(s)} ${isTop(s) ? TOP - 7 : BOTTOM + 17})` : undefined} x={slotX(s)} y={isTop(s) ? TOP - 7 : BOTTOM + 17} fontSize="12" textAnchor="middle" fill={th.inlay} opacity="0.75" style={{ userSelect: 'none' }}>
           {s + 1}
         </text>
       ))}
@@ -160,6 +142,8 @@ interface CheckerRender {
 }
 
 export function BoardView(p: BoardProps) {
+  const g = useMemo(() => geom(p.vertical ? 660 : 800), [p.vertical]);
+  const { BOTTOM, MID_Y, VB_H, checkerPos, offPos, barPos, locAt } = g;
   const th = THEMES[p.theme];
   const uid = 'b' + p.theme;
   const idsRef = useRef<[Map<Loc, number[]> | null, Map<Loc, number[]> | null]>([null, null]);
@@ -197,7 +181,7 @@ export function BoardView(p: BoardProps) {
     const lm = lastMovedRef.current;
     out.sort((a, b) => Number(lm.has(a.id)) - Number(lm.has(b.id)) || a.id - b.id);
     return out;
-  }, [p.board, p.viewer, p.variant]);
+  }, [p.board, p.viewer, p.variant, g]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ from: Loc; id: number; sx: number; sy: number; active: boolean } | null>(null);
@@ -206,7 +190,9 @@ export function BoardView(p: BoardProps) {
   const toSvg = (e: React.PointerEvent) => {
     const svg = svgRef.current!;
     const r = svg.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * VB_W, y: ((e.clientY - r.top) / r.height) * VB_H };
+    const X = ((e.clientX - r.left) / r.width) * (p.vertical ? 660 : VB_W);
+    const Y = ((e.clientY - r.top) / r.height) * (p.vertical ? VB_W : 800);
+    return p.vertical ? { x: Y, y: 660 - X } : { x: X, y: Y };
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -252,7 +238,7 @@ export function BoardView(p: BoardProps) {
     <svg
       ref={svgRef}
       className="board-svg"
-      viewBox={`0 0 ${VB_W} ${VB_H}`}
+      viewBox={p.vertical ? '0 0 660 1000' : `0 0 ${VB_W} ${VB_H}`}
       role="img"
       aria-label={p.label}
       onPointerDown={onPointerDown}
@@ -263,13 +249,14 @@ export function BoardView(p: BoardProps) {
         setGhost(null);
       }}
     >
-      <Defs th={th} id={uid} />
-      <StaticBoard th={th} id={uid} />
+      <Defs th={th} id={uid} vertical={p.vertical} />
+      <g transform={p.vertical ? 'matrix(0 1 -1 0 660 0)' : undefined}>
+      <StaticBoard th={th} id={uid} g={g} vertical={p.vertical} />
 
       {/* last move markers */}
       {[...p.lastMove].map((loc) =>
         loc.startsWith('s') ? (
-          <path key={'lm' + loc} d={pointPath(Number(loc.slice(1)))} fill={th.highlight} opacity="0.18" pointerEvents="none" />
+          <path key={'lm' + loc} d={pointPath(Number(loc.slice(1)), g)} fill={th.highlight} opacity="0.18" pointerEvents="none" />
         ) : null,
       )}
 
@@ -286,8 +273,8 @@ export function BoardView(p: BoardProps) {
         const pos = checkerPos(slot, n, n + 1);
         return (
           <g key={'t' + loc} data-hint="target" pointerEvents="none">
-            <path d={pointPath(slot)} fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
-            <path d={pointPath(slot)} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
+            <path d={pointPath(slot, g)} fill={th.hint.fill} fillOpacity="0.22" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
+            <path d={pointPath(slot, g)} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
             <circle cx={pos.x} cy={pos.y} r={R - 3} fill={`url(#${uid}-ck-${p.mover === 0 ? 'white' : 'black'})`} fillOpacity="0.45" stroke={th.hint.edge} strokeWidth={HINT_EDGE_W} />
             <circle cx={pos.x} cy={pos.y} r={R - 3} fill="none" stroke={th.hint.fill} strokeWidth={HINT_FILL_W} />
           </g>
@@ -326,7 +313,7 @@ export function BoardView(p: BoardProps) {
                   </g>
                 )}
                 {c.top && c.count > 5 && (
-                  <text y="0" dominantBaseline="central" fontSize="26" fontWeight="700" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
+                  <text transform={p.vertical ? 'rotate(-90)' : undefined} y="0" dominantBaseline="central" fontSize="26" fontWeight="700" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
                     {c.count}
                   </text>
                 )}
@@ -335,6 +322,7 @@ export function BoardView(p: BoardProps) {
           </g>
         );
       })}
+      </g>
     </svg>
   );
 }
