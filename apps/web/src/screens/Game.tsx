@@ -20,6 +20,9 @@ import {
   type Memo,
 } from '@nardy/core';
 import { SettingsScreen } from './Menus';
+import { ActionBar, PlayerStrip } from './GameHud';
+import { Icon } from '../components/icons';
+import './game-hud.css';
 import { BoardView } from '../components/Board';
 import { Cube, DiceCup, Die } from '../components/Dice';
 import { FIELD_END, FRAME, Loc, locOf, posOfSlot } from '../components/geometry';
@@ -399,33 +402,6 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     const p = g.players[c];
     const clk = clockFor(c);
     const active = act === c;
-    if (hud) {
-      const running = act === c && clocks?.turnStartedAt != null;
-      const elapsed = running ? Math.max(0, serverNow - clocks!.turnStartedAt!) : 0;
-      const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
-      const moveLeft = clocks?.moveTimerMs ? Math.max(0, clocks.moveTimerMs - elapsed) : null;
-      const pieceLabel = c === 0 ? T.white : st.theme === 'minimal' ? T.red : T.black;
-      return <div className={'pbar player-card' + (active ? ' active' : '')}>
-        <div className="player-piece">
-          <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
-          <span>{pieceLabel}</span>
-        </div>
-        <div className="player-card-body">
-          <div className="pname" title={p?.name}>{p?.name ?? '—'}</div>
-          {p && !p.connected && <span className="tag warn">{T.offline}</span>}
-          <div className="player-card-state">
-            <i className={'turn-light' + (active ? ' active' : '')} title={active ? T.hotseatTurn : undefined} />
-            <span className="player-score" title={T.score}>{m.score[c]}</span>
-            {m.cube.owner === c && m.settings.cube && <Cube value={m.cube.value} />}
-          </div>
-          <div className="pmeta" data-pips={c === viewer ? 'me' : 'opp'}>{pipCount(board, c)} {T.pips} · {board.off[c]}/15</div>
-        </div>
-        <div className="player-timers">
-          <span className="bank-time" title={T.bank}>{bankLeft === null ? '—' : fmt(bankLeft)}</span>
-          <span className={'move-time' + (clk?.low ? ' low' : '')} title={T.moveTimer}>{moveLeft === null ? '—' : fmt(moveLeft)}</span>
-        </div>
-      </div>;
-    }
     return (
       <div className={'pbar' + (active ? ' active' : '') + (bottom ? ' bottom' : '')}>
         <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
@@ -446,15 +422,38 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     );
   };
 
+  const strip = (c: Color) => {
+    const p = g.players[c], clk = clockFor(c), running = act === c && clocks?.turnStartedAt != null;
+    const elapsed = running ? Math.max(0, serverNow - clocks!.turnStartedAt!) : 0;
+    const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
+    const moveLeft = clocks?.moveTimerMs ? Math.max(0, clocks.moveTimerMs - elapsed) : null;
+    const mine = c === viewer;
+    return <PlayerStrip key={c} name={p?.name ?? '—'} offline={!!p && !p.connected} mine={mine} active={act === c} statusText={statusText}
+      pips={pipCount(board, c)} pipDiff={pipCount(board, other(c)) - pipCount(board, c)} off={board.off[c]} score={m.score[c]}
+      cube={m.cube.owner === c && m.settings.cube ? <Cube value={m.cube.value} /> : null}
+      pieceChip={<span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />}
+      bank={bankLeft === null ? null : fmt(bankLeft)} move={moveLeft === null ? null : fmt(moveLeft)} low={!!clk?.low} />;
+  };
+
+  const hasPending = !!pending && !sent && pending.chains.length > 0;
+  const actionBar = <ActionBar
+    canUndo={hasPending && (sendAt !== null || !busy)} undoCountdownMs={sendAt !== null ? UNDO_MS : null} undo={undo}
+    canDone={hasPending && turnDone && !busy && (!st.autoConfirm || paused)} done={submit}
+    onReact={(e) => ctrl.emoji(e)} emojis={EMOJIS}
+    onChat={g.mode === 'online' && compact ? () => setChatOpen((o) => !o) : null} chatDot={g.chat.length > 0 && !chatOpen}
+    extra={<>{canClaim && <button className="btn gold" onClick={() => ctrl.claim()}>{T.claimWin}</button>}
+      {mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>×2 {T.double}{st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}</button>}</>} />;
+
+
   const nextIn = clocks?.nextGameAt ? Math.max(0, clocks.nextGameAt - (g.mode === 'online' ? serverNow : now)) : null;
 
   return (
-    <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '')}>
+    <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '') + (wide ? ' desk2' : '') + (wide && g.mode === 'online' ? ' has-chat' : '')}>
       <header className="game-top">
         <button className="icon-btn" onClick={onExit} aria-label={T.toMenu}>
-          ←
+          {hud ? <Icon name="back" /> : '←'}
         </button>
-        <div className="score">
+        {!wide && <div className="score">
           {!hud && <span>{nameOf(0)}</span>}
           <b>
             {m.score[0]} : {m.score[1]}
@@ -464,7 +463,8 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {T.matchLength} {m.settings.matchLength} · {variant === 'long' ? T.long : T.short}
             {m.crawford ? ` · ${T.crawford}` : ''}
           </small>
-        </div>
+        </div>}
+        {wide && <small className="desk-meta">{T.matchLength} {m.settings.matchLength} · {variant === 'long' ? T.long : T.short}{m.crawford ? ` · ${T.crawford}` : ''}</small>}
         <div className="game-top-actions">
           {g.mode === 'online' && !hud && <button className="icon-btn" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
             💬{g.chat.length > 0 && !chatOpen && <i className="dot" />}
@@ -475,10 +475,13 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
               <circle cx="12" cy="12.8" r="3.2" />
             </svg>
           </button>
+          {hud && <button className="icon-btn" aria-label={T.more} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}><Icon name="dots" /></button>}
         </div>
       </header>
 
-      {!hud && playerBar(opp)}
+      {hud && <span className="status sr-status" role="status">{statusText}</span>}
+      {wide && <div className="desk-score">{m.score[0]} : {m.score[1]}</div>}
+      {hud ? <div className="area-opp">{strip(opp)}</div> : playerBar(opp)}
 
       <div className={'board-wrap' + (compact ? ' compact-board' : '')} style={{
         aspectRatio: `${boardWidth} / ${compact ? 1100 : 800}`,
@@ -641,17 +644,9 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
       {!hud && playerBar(viewer, true)}
 
-      <div className={hud ? 'mobile-hud' : 'desktop-hud'}>
-      {hud && playerBar(viewer, true)}
+      {hud ? <div className="mobile-hud">{strip(viewer)}{actionBar}</div> : <>
+      <div className="desktop-hud">
       <div className="controls">
-        {hud && <div className="quick-social">
-          {g.mode === 'online' && compact && <button className="btn quick-chat" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
-            💬 {T.chat}{g.chat.length > 0 && !chatOpen && <i className="dot" />}
-          </button>}
-          <div className="quick-reactions">
-            {(['👍', '😂', '🔥', '🤝'] as const).map((emoji) => <button key={emoji} type="button" onClick={() => ctrl.emoji(emoji)} aria-label={emoji}>{emoji}</button>)}
-          </div>
-        </div>}
         <span className="status">{statusText}</span>
         {pending && !sent && pending.chains.length > 0 && (
           <>
@@ -680,28 +675,16 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             ⚑ {T.resign}
           </button>
         )}
-        {hud && mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
-          ×2 {T.double}
-          {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
-        </button>}
-        {compact && <button className="icon-btn" aria-label={T.more} onClick={() => setMoreOpen((open) => !open)}>⋯</button>}
       </div>
 
-      {hud && playerBar(opp)}
       </div>
 
-      {(!compact || moreOpen) && <div className={compact ? 'phone-more' : 'desk-more'}>
-      {compact && <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}>✕</button>}
-      <div className="emoji-bar">
-        {EMOJIS.map((e) => (
-          <button key={e} onClick={() => ctrl.emoji(e)} aria-label={e}>
-            {e}
-          </button>
-        ))}
-      </div>
-
-      {compact && <button className="btn subtle" onClick={() => { setMoreOpen(false); setConfirmResign(true); }}>⚑ {T.resign}</button>}
-      {wide && m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && <button className="btn subtle resign" onClick={() => setConfirmResign(true)}>⚑ {T.resign}</button>}
+      <div className="desk-more"><div className="emoji-bar">{EMOJIS.map((e) => <button key={e} onClick={() => ctrl.emoji(e)} aria-label={e}>{e}</button>)}</div></div>
+      </>}
+      {hud && moreOpen && <div className="phone-more hud-more">
+        <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}><Icon name="close" /></button>
+        <button className="btn" onClick={() => { setMoreOpen(false); setSettingsOpen(true); }}><Icon name="gear" /> {T.settings}</button>
+        {m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && <button className="btn subtle" onClick={() => { setMoreOpen(false); setConfirmResign(true); }}>{T.resign}</button>}
       </div>}
 
       {(chatOpen || wide) && g.mode === 'online' && (

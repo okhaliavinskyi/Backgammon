@@ -1,4 +1,4 @@
-export type IconName = 'globe' | 'robot' | 'people' | 'gear' | 'chevron' | 'back' | 'dots' | 'share' | 'copy' | 'refresh' | 'lock' | 'smile' | 'undo' | 'check' | 'book' | 'edit' | 'chat' | 'plus';
+export type IconName = 'globe' | 'robot' | 'people' | 'gear' | 'chevron' | 'back' | 'dots' | 'share' | 'copy' | 'refresh' | 'lock' | 'smile' | 'undo' | 'check' | 'book' | 'edit' | 'chat' | 'plus' | 'close' | 'dice' | 'motion';
 const P: Record<IconName, string> = {
   globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18',
   robot: 'M5 8h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM12 8V4M9 13h.01M15 13h.01',
@@ -17,6 +17,9 @@ const P: Record<IconName, string> = {
   book: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7',
   edit: 'M4 20h4L19 9l-4-4L4 16z',
   chat: 'M4 5h16v11H9l-5 4z',
+  close: 'M6 6l12 12M18 6L6 18',
+  dice: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01',
+  motion: 'M8 4h8v16H8zM4 8l-2 4 2 4M20 8l2 4-2 4',
   plus: 'M12 5v14M5 12h14',
 };
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

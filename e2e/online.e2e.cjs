@@ -4,6 +4,7 @@
 const { chromium, devices } = require('playwright');
 const OUT = process.argv[2] || 'e2e-shots';
 require('fs').mkdirSync(OUT, { recursive: true });
+const IMPL_SCREEN_DIR = process.env.IMPL_SCREEN_DIR || 'docs/design/impl-screens';
 const BASE = process.env.NARDY_URL || 'http://127.0.0.1:8787';
 const settings = (name) => JSON.stringify({ state: { name, lang: 'ru', theme: 'wood', sound: false, speed: 'fast', autoRoll: false, autoConfirm: true, hints: true, shake: true, vibration: false }, version: 1 });
 const errors = [];
@@ -50,7 +51,7 @@ async function finishPending(p) {
     else if (await ring.count()) await tap(p, ring);
     await p.waitForTimeout(100);
   }
-  throw new Error('undo window missing after completing turn: ' + await p.locator('.controls').innerText());
+  throw new Error('undo window missing after completing turn: ' + await p.locator('.action-bar, .controls').first().innerText());
 }
 async function autoFlow(b) {
   const p = await mk(b, 'M2');
@@ -111,17 +112,17 @@ async function recovery(b, mode) {
   initialSeq=seq; armed=true;
   await finishPending(a);
   if(mode==='reject') {
-    await a.locator('button:has-text("✓")').waitFor({timeout:3000});
+    await a.locator('button:has-text("Готово"):enabled').waitFor({timeout:3000});
     await a.waitForTimeout(1500);
     if(frames!==1)throw new Error('rejected move auto-resent: frames='+frames);
-    await a.locator('button:has-text("✓")').click();
+    await a.locator('button:has-text("Готово")').click();
   } else {
     const deadline=Date.now()+15000; let recovered=false;
     while(Date.now()<deadline && seq<=initialSeq) {
-      if(await a.locator('button.undo-send, button:has-text("✓")').count())recovered=true;
+      if(await a.locator('button.undo-send, button:has-text("Готово"):enabled').count())recovered=true;
       await a.waitForTimeout(50);
     }
-    if(!recovered || seq<=initialSeq)throw new Error('stuck: seq='+seq+' initial='+initialSeq+' controls='+await a.locator('.controls').innerText());
+    if(!recovered || seq<=initialSeq)throw new Error('stuck: seq='+seq+' initial='+initialSeq+' controls='+await a.locator('.action-bar, .controls').first().innerText());
   }
   const deadline=Date.now()+3000;
   while(seq<=initialSeq && Date.now()<deadline)await a.waitForTimeout(50);
@@ -140,11 +141,11 @@ async function rejoinScenario(b) {
   await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor({timeout:3000});
   if(process.env.REJOIN_SHOTS)for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite']){
     await c.setViewportSize({width,height});await c.evaluate(theme=>{const s=JSON.parse(localStorage.getItem('nardy.settings'));s.state.theme=theme;localStorage.setItem('nardy.settings',JSON.stringify(s))},theme);await c.reload();await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor();
-    require('fs').mkdirSync('docs/design/impl-screens',{recursive:true});await c.screenshot({path:`docs/design/impl-screens/task4-${width}-${theme}.png`});
+    require('fs').mkdirSync(IMPL_SCREEN_DIR,{recursive:true});await c.screenshot({path:`${IMPL_SCREEN_DIR}/task4-${width}-${theme}.png`});
   }
   await c.locator('input[type=password]').fill('wrong');await c.getByRole('button',{name:'Вернуться',exact:true}).click();await c.getByText('Неверный пароль',{exact:true}).waitFor();
-  await c.locator('input[type=password]').fill('42');await c.getByRole('button',{name:'Вернуться',exact:true}).click();await c.waitForSelector('.game-top .score');
-  await a.locator('.pbar .tag.warn').waitFor({state:'hidden',timeout:3000});
+  await c.locator('input[type=password]').fill('42');await c.getByRole('button',{name:'Вернуться',exact:true}).click();await c.waitForSelector('.board-svg');
+  await a.locator('.strip').first().waitFor();await a.locator('.strip .tag.warn').waitFor({state:'hidden',timeout:3000});
   if(!await a.getByText('Борис',{exact:true}).count())throw Error('rejoin fallback name is not Борис');
   await c.reload();await c.waitForSelector('.board-svg');await a.waitForTimeout(150);
   if(!await a.getByText('Борис',{exact:true}).count())throw Error('rejoin fallback name lost after reload');
@@ -180,7 +181,7 @@ for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of
  if(values.rimCount!==values.expectedRims)throw Error('checker rims missing '+JSON.stringify(values));
  if(stacksBad(values))throw Error('stack too high '+JSON.stringify(values));
  if(process.env.HINT_GATE&&(values.rings!==values.expected||values.targets!==values.expectedTargets))throw Error('hint count mismatch '+JSON.stringify(values));
- fs.mkdirSync('docs/design/impl-screens',{recursive:true});await p.screenshot({path:`docs/design/impl-screens/${process.env.TASK||'task2'}-${width}-${theme}.png`});count++;await ctx.close();
+ fs.mkdirSync(IMPL_SCREEN_DIR,{recursive:true});await p.screenshot({path:`${IMPL_SCREEN_DIR}/${process.env.TASK||'task2'}-${width}-${theme}.png`});count++;await ctx.close();
 }console.log(`console errors ${errors.length}, pages ${count}`,JSON.stringify(errors));await b.close();if(errors.length)process.exit(1);
 
 }
@@ -199,7 +200,7 @@ for(let i=0;i<8;i++){
  const candidates=p.locator('[data-hint="movable"]');if(i>=await candidates.count())break;
  const s=await candidates.nth(i).boundingBox();await p.mouse.click(s.x+s.width/2,s.y+s.height/2);await p.waitForTimeout(50);
  if(await p.locator('[data-hint="target"] circle').count()){found=true;break;}
- if((await p.locator('[data-pips="me"]').textContent())!==before){await p.getByRole('button',{name:'↶ Отменить',exact:true}).click();await p.waitForTimeout(50);}
+ if((await p.locator('[data-pips="me"]').textContent())!==before){await p.getByRole('button',{name:'Отменить',exact:true}).click();await p.waitForTimeout(50);}
 }
 if(!found)throw Error(mode+' source produced no targets');
 const t=await p.locator('[data-hint="target"] circle').first().boundingBox();
@@ -256,14 +257,14 @@ async function verifyStates() {
       // Restore the roll state to capture the countdown itself.
       await ctx.close();const shotCtx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
       await shotCtx.addInitScript(({theme,m})=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true,vibration:false}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},{theme,m});
-      const shot=await shotCtx.newPage();shot.on('pageerror',e=>stateErrors.push(String(e)));shot.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();await shot.screenshot({path:`docs/design/impl-screens/final-${state}-${width}-${theme}.png`});await shotCtx.close();pageCount+=2;continue;
+      const shot=await shotCtx.newPage();shot.on('pageerror',e=>stateErrors.push(String(e)));shot.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();await shot.screenshot({path:`${IMPL_SCREEN_DIR}/final-${state}-${width}-${theme}.png`});await shotCtx.close();pageCount+=2;continue;
     }
     if(state==='undo')await finishPending(p);
     if(state==='stack10'){
       const height=await p.evaluate(()=>{const cs=[...document.querySelectorAll('g.ck[data-color="0"]')].filter(c=>c.dataset.loc==='s23'),g=document.createElementNS('http://www.w3.org/2000/svg','g');cs.forEach(c=>g.append(c.cloneNode(true)));document.querySelector('svg').append(g);const h=g.getBBox().height;g.remove();return {height:h,count:cs.length}});
       if(height.count!==10||height.height>290.001)throw Error('10-stack height '+height);console.log(`${width} ${theme} stack10 height ${height.height}, count ${height.count}`);
     }
-    await p.screenshot({path:`docs/design/impl-screens/final-${state}-${width}-${theme}.png`});pageCount++;await ctx.close();
+    await p.screenshot({path:`${IMPL_SCREEN_DIR}/final-${state}-${width}-${theme}.png`});pageCount++;await ctx.close();
   }
   await b.close();fs.rmSync(dir,{recursive:true});console.log('state matrix pages '+pageCount+', console errors '+stateErrors.length);if(stateErrors.length)throw Error(stateErrors.join('\n'));
 }
@@ -291,7 +292,7 @@ async function reviewBoard(b) {
  const top=await p.locator('g.ck[data-color="0"][data-loc="s17"]').last().locator('text').textContent({timeout:1000}).catch(()=>null);
  if(top!=='6')throw Error('compressed stack logical top hidden: last painted checker count '+top);
  console.log('compressed stack logical top painted last: count 6');
- await p.getByRole('button',{name:'✓ Готово',exact:true}).click();
+ await p.getByRole('button',{name:'Готово',exact:true}).click();
  await p.waitForFunction(()=>{const m=JSON.parse(localStorage.getItem('nardy.aiGame')).match;return m.phase==='move'&&m.turn===1},null,{polling:10,timeout:3000});await p.waitForTimeout(20);
  const dims=await p.locator('g.ck[data-color="1"]').evaluateAll(cs=>cs.filter(x=>Number(getComputedStyle(x).opacity)<1).length);
  if(dims)throw Error('opponent turn stale dimming: '+dims+' checkers');console.log('opponent turn dimmed checkers: 0');await c.close();fs.rmSync(dir,{recursive:true});
@@ -327,7 +328,7 @@ async function verifyGhosts(b) {
 
 async function captureThemes() {
  const prefix=process.env.PREVIEW_PREFIX || 'handover';
- require('fs').mkdirSync('docs/design/impl-screens',{recursive:true});
+ require('fs').mkdirSync(IMPL_SCREEN_DIR,{recursive:true});
  const b=await chromium.launch({channel:'chrome'});
  for(const theme of ['wood','minimal','malachite']){
    const pages=[];
@@ -347,7 +348,7 @@ async function captureThemes() {
      const ring=p.locator('[data-hint="movable"]').nth(i);if(!await ring.count())break;
      await tap(p,ring);await p.waitForTimeout(50);
      if(await p.locator('[data-hint="target"]').count())break;
-     if((await p.locator('[data-pips="me"]').textContent())!==before){await p.getByRole('button',{name:'↶ Отменить',exact:true}).click();await p.waitForTimeout(50)}
+     if((await p.locator('[data-pips="me"]').textContent())!==before){await p.getByRole('button',{name:'Отменить',exact:true}).click();await p.waitForTimeout(50)}
    }
    await p.locator('[data-hint="target"]').first().waitFor();
    const measured=await p.evaluate(()=>{const r=document.querySelector('.board-wrap').getBoundingClientRect(),h=document.querySelector('.mobile-hud').getBoundingClientRect();return {top:r.top,width:r.width,height:r.height,bottomGap:innerHeight-h.bottom,movable:document.querySelectorAll('[data-hint="movable"]').length,selected:document.querySelectorAll('[data-hint="selected"]').length,targets:document.querySelectorAll('[data-hint="target"]').length,rims:document.querySelectorAll('[data-checker-rim]').length}});
@@ -359,14 +360,14 @@ async function captureThemes() {
        const panel=document.createElement('div');panel.id='hint-detail';panel.style.cssText='position:fixed;left:0;top:0;width:180px;height:180px;z-index:99999;background:#11151d';
        const clone=svg.cloneNode(true);clone.removeAttribute('class');clone.setAttribute('viewBox',kind==='seat'?`${center.x-46} ${center.y-32} 92 92`:`${center.x-42} ${center.y-42} 84 84`);clone.style.cssText='width:180px;height:180px;display:block';panel.append(clone);document.body.append(panel);
      },kind);
-     await p.locator('#hint-detail').screenshot({path:`docs/design/impl-screens/${prefix}-detail-${kind}-${theme}.png`});
+     await p.locator('#hint-detail').screenshot({path:`${IMPL_SCREEN_DIR}/${prefix}-detail-${kind}-${theme}.png`});
      await p.evaluate(()=>document.querySelector('#hint-detail').remove());
    }
    const bed=await p.locator('[data-field-surface]').first().getAttribute('y');if(bed!=='53')throw Error('frame bed not exposed '+bed);if(await p.locator('[data-selected-mark]').count()!==1)throw Error('selected badge missing');
-   await p.mouse.move(0,0);await p.screenshot({path:`docs/design/impl-screens/${prefix}-hints-360-${theme}.png`});
+   await p.mouse.move(0,0);await p.screenshot({path:`${IMPL_SCREEN_DIR}/${prefix}-hints-360-${theme}.png`});
    const beforeUndo=await finishPending(p);
    await p.locator('button.undo-send').waitFor();
-   await p.screenshot({path:`docs/design/impl-screens/${prefix}-undo-360-${theme}.png`});
+   await p.screenshot({path:`${IMPL_SCREEN_DIR}/${prefix}-undo-360-${theme}.png`});
    await p.locator('button.undo-send').click();await p.locator('button.undo-send').waitFor({state:'hidden'});
    const afterUndo=await p.locator('[data-pips="me"]').textContent();if(afterUndo!==beforeUndo)throw Error(`undo ${beforeUndo} -> ${afterUndo}`);
    const urlBefore=p.url();
@@ -378,7 +379,7 @@ async function captureThemes() {
    if(await p.evaluate(()=>JSON.parse(localStorage.getItem('nardy.settings')).state.hints))throw Error('settings did not persist hints off');
    await hintToggle.check();
    if(await settings.evaluate(element=>element.scrollWidth-element.clientWidth)>1)throw Error('settings horizontal overflow');
-   await p.screenshot({path:`docs/design/impl-screens/${prefix}-settings-360-${theme}.png`});
+   await p.screenshot({path:`${IMPL_SCREEN_DIR}/${prefix}-settings-360-${theme}.png`});
    await p.keyboard.press('Escape');await settings.waitFor({state:'hidden'});
    if(p.url()!==urlBefore||!await p.evaluate(()=>window.__previewBoard===document.querySelector('.board-svg')))throw Error('settings exited or remounted game');
    const boardAfter=await p.locator('.board-wrap').boundingBox();
@@ -450,7 +451,7 @@ async function captureThemes() {
   if (await A.locator('button[aria-label="Чат"]').count()) await A.locator('button[aria-label="Чат"]').click(); // wide layout: chat panel always open
   await A.locator('.chat-form input').fill('Привет, удачи!');
   await A.locator('.chat-form button').click();
-  await A.locator('.emoji-bar button').nth(5).click();
+  await A.getByRole('button',{name:'Реакции',exact:true}).click();await A.getByRole('menuitem').nth(5).click();
   await B.waitForSelector('.float-emoji');
   if (await B.locator('button[aria-label="Чат"]').count()) await B.locator('button[aria-label="Чат"]').click(); // wide layout: chat panel always open
   await B.waitForSelector('text=Привет, удачи!');
@@ -460,7 +461,7 @@ async function captureThemes() {
   console.log('pips A view', pipsA, 'B view', pipsB);
   if (pipsA.length !== 2 || pipsA.some((v,i)=>v===initialPips[i])) throw new Error('pips unchanged: initial '+initialPips+' final '+pipsA);
   // resign -> result modal
-  await A.locator('button:has-text("Сдаться")').click();
+  await A.getByRole('button',{name:'Ещё',exact:true}).click();await A.getByRole('button',{name:'Сдаться',exact:true}).click();
   await A.locator('.modal button:has-text("Да")').click();
   await A.waitForSelector('.result');
   await B.waitForSelector('.result');

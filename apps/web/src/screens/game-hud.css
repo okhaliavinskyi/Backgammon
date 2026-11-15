@@ -1,0 +1,45 @@
+.game .strip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--panel-b); min-height: 56px; width: 100%; }
+.game .strip.active { background: var(--bg2); border: 1.5px solid var(--accent); }
+.game .strip-main { flex: 1; min-width: 0; }
+.game .strip-name { display: flex; align-items: baseline; gap: 8px; }
+.game .turn-now { font-size: 13px; font-weight: 700; color: var(--accent); }
+.game .strip .pmeta { font-size: 13px; margin: 0; opacity: .85; white-space: normal; overflow: visible; text-overflow: clip; }
+.game .strip .pdiff { font-size: 13px; }
+.game .strip .pdiff.ahead { color: var(--ok); font-weight: 700; }
+.game .strip .tag.warn { font-size: 11px; }
+.game .strip-timers { display: flex; flex-direction: column; gap: 2px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.game .mobile-hud { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: auto; grid-template-columns: none; }
+.game.phone-game .mobile-hud { margin-top: 0; flex: 1; }
+.game.phone-game .action-bar { margin-top: auto; }
+.game .action-bar { display: flex; align-items: center; gap: 8px; }
+.game .action-bar .btn { flex: 1; min-height: 48px; }
+.game .action-bar .round { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--panel-b); background: var(--panel); color: var(--text); display: grid; place-items: center; position: relative; flex: none; }
+.game .action-bar .round .dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.game .react-wrap { position: relative; }
+.game .react-pop { position: absolute; bottom: 56px; left: 0; display: flex; gap: 4px; padding: 6px; background: var(--bg); border: 1px solid var(--panel-b); border-radius: 14px; box-shadow: 0 6px 30px #0008; z-index: 10; }
+.game .react-pop button { width: 44px; height: 44px; border: 0; background: transparent; font-size: 22px; }
+.game .game-top .icon-btn { width: 44px; height: 44px; }
+.sr-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* desktop: re-assign the existing grid areas */
+.game.desk2 { grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto auto auto minmax(0, 1fr) auto; grid-template-areas: 'top top' 'board score' 'board opp' 'board chat' 'board me'; }
+.game.desk2:not(.has-chat) { grid-template-rows: auto auto auto auto minmax(0, 1fr); grid-template-areas: 'top top' 'board score' 'board opp' 'board me' 'board .'; }
+.game.desk2 .desk-score { grid-area: score; text-align: center; font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.game.desk2 .area-opp { grid-area: opp; }
+.game.desk2 .mobile-hud { grid-area: me; margin-top: 0; }
+.game.desk2 .chat { grid-area: chat; align-self: stretch; }
+
+
+/* Keep the opponent strip full-width on phone, and popovers within the viewport. */
+.game .area-opp { width: 100%; }
+.game .strip-name b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game .strip-name { flex-wrap: wrap; column-gap: 8px; }
+.game .strip-score, .game .strip-timers { flex: none; }
+.game .action-bar { flex-wrap: wrap; }
+.game .action-bar > .btn { min-width: 0; padding-inline: 8px; font-size: 14px; }
+.game .action-extra { display: flex; gap: 8px; flex: 1 0 100%; }
+.game .action-extra:empty { display: none; }
+.game .action-extra .btn { position: relative; overflow: hidden; }
+.game .react-pop { display: grid; grid-template-columns: repeat(4, 44px); }
+.game .hud-more { top: 64px; bottom: auto; left: auto; right: 8px; width: max-content; max-width: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; }
+.game .hud-more > .icon-btn { align-self: flex-end; }
+.game .desk-meta { color: var(--muted); flex: 1; text-align: center; }
