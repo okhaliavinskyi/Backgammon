@@ -6,6 +6,8 @@ import { loadSavedAiGame } from '../controllers/local';
 import { motionSupported, needsPermission, requestMotionPermission } from '../lib/shake';
 import { unlockAudio } from '../lib/sound';
 import { Logo } from '../components/Logo';
+import { Icon } from '../components/icons';
+import './menus.css';
 
 export type Nav = (path: string) => void;
 
@@ -45,41 +47,46 @@ function NameField() {
   );
 }
 
+export function NameChip() {
+  const T = useT();
+  const { name, set } = useSettings();
+  const [edit, setEdit] = useState(false);
+  if (edit)
+    return <input className="name-input" autoFocus value={name} maxLength={20} placeholder={T.you} aria-label={T.yourName}
+      onChange={(e) => set({ name: e.target.value })} onBlur={() => setEdit(false)} onKeyDown={(e) => e.key === 'Enter' && setEdit(false)} />;
+  return (
+    <button className="name-chip" onClick={() => setEdit(true)}>
+      <span className="muted">{T.playingAs}</span> <b>{name || T.you}</b> <Icon name="edit" size={14} />
+    </button>
+  );
+}
+
+
 export function Home({ nav }: { nav: Nav }) {
   const T = useT();
   const saved = loadSavedAiGame();
   return (
-    <div className="screen home">
-      <Logo />
-      <h1>{T.appName}</h1>
-      <p className="tagline">{T.tagline}</p>
-      <div className="menu">
-        {saved && (
-          <button className="btn gold big" onClick={() => nav('/play?resume=1')}>
-            ▶ {T.continueGame}
-          </button>
-        )}
-        <button className="btn primary big" onClick={() => (unlockAudio(), nav('/online'))}>
-          <span className="ico" aria-hidden>🌐</span> {T.playOnline}
-        </button>
-        <button className="btn big" onClick={() => (unlockAudio(), nav('/ai'))}>
-          <span className="ico" aria-hidden>🤖</span> {T.playAi}
-        </button>
-        <button className="btn big" onClick={() => (unlockAudio(), nav('/local'))}>
-          <span className="ico" aria-hidden>👥</span> {T.playLocal}
-        </button>
-        <button className="btn subtle" onClick={() => nav('/settings')}>
-          <span className="ico" aria-hidden>⚙</span> {T.settings}
-        </button>
-      </div>
-      <details className="rules">
-        <summary>{T.rules}</summary>
-        <h3>{T.long}</h3>
-        <p>{T.rulesLong}</p>
-        <h3>{T.short}</h3>
-        <p>{T.rulesShort}</p>
-      </details>
-    </div>
+<div className="screen home2">
+  <header className="home2-head">
+    <span className="home2-brand"><Logo size={36} /><b>{T.appName}</b></span>
+    <button className="icon-btn t44" aria-label={T.settings} onClick={() => nav('/settings')}><Icon name="gear" /></button>
+  </header>
+  {saved && (
+    <button className="resume-card" onClick={() => nav('/play?resume=1')}>
+      <span className="resume-play" aria-hidden><Icon name="chevron" /></span>
+      <span className="grow"><b>{T.continueGame}</b></span>
+    </button>
+  )}
+  <div className="eyebrow">{T.newGame}</div>
+  <button className="menu-row primary" onClick={() => (unlockAudio(), nav('/online'))}><Icon name="globe" size={26} /><span className="grow"><b>{T.playOnline}</b></span><Icon name="chevron" /></button>
+  <button className="menu-row" onClick={() => (unlockAudio(), nav('/ai'))}><Icon name="robot" size={26} /><span className="grow"><b>{T.playAi}</b></span><Icon name="chevron" /></button>
+  <button className="menu-row" onClick={() => (unlockAudio(), nav('/local'))}><Icon name="people" size={26} /><span className="grow"><b>{T.playLocal}</b></span><Icon name="chevron" /></button>
+  <details className="rules home2-rules">
+    <summary><Icon name="book" /> {T.howToPlay}</summary>
+    <h3>{T.long}</h3><p>{T.rulesLong}</p><h3>{T.short}</h3><p>{T.rulesShort}</p>
+  </details>
+</div>
+
   );
 }
 
