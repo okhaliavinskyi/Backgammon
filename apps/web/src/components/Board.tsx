@@ -299,7 +299,8 @@ export function BoardView(p: BoardProps) {
               <rect x={-TRAY_W / 2 + 10} y={-SLAB_H / 2} width={TRAY_W - 20} height={SLAB_H} rx="4" fill={`url(#${uid}-ck-${c.color === 0 ? 'white' : 'black'})`} stroke={col.ring} strokeWidth="1" />
             ) : (
               <g filter={`url(#${uid}-${selected ? 'lift' : 'shadow'})`}>
-                <circle r={R} fill={`url(#${uid}-ck-${c.color === 0 ? 'white' : 'black'})`} stroke={col.dark} strokeWidth="1.5" />
+                <circle r={R} fill={`url(#${uid}-ck-${c.color === 0 ? 'white' : 'black'})`} stroke={th.rim.edge} strokeWidth="4" />
+                <circle data-checker-rim r={R - 1} fill="none" stroke={th.rim.fill} strokeWidth="2" />
                 {(c.top || c.count <= 5) && <><circle r={R - 7} fill="none" stroke={col.ring} strokeWidth="2" opacity="0.8" />
                 <circle r={R - 15} fill="none" stroke={col.ring} strokeWidth="1.2" opacity="0.55" /></>}
                 {(movable || selected) && (

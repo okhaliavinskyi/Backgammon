@@ -1,7 +1,7 @@
 import type { Theme } from '../lib/settings';
 
-export const HINT_FILL_W = 3;
-export const HINT_EDGE_W = 7;
+export const HINT_FILL_W = 4;
+export const HINT_EDGE_W = 8;
 
 export interface BoardTheme {
   frame: string;
@@ -17,6 +17,7 @@ export interface BoardTheme {
   number: string;
   white: { base: string; light: string; dark: string; ring: string };
   black: { base: string; light: string; dark: string; ring: string };
+  rim: { fill: string; edge: string };
   hint: { fill: string; edge: string };
   dim: number;
   highlight: string;
@@ -38,7 +39,8 @@ export const THEMES: Record<Theme, BoardTheme> = {
     number: '#fff0ce',
     white: { base: '#f4ead2', light: '#fffaf0', dark: '#c9b78f', ring: '#b49a6a' },
     black: { base: '#2a1b14', light: '#5a4032', dark: '#120a06', ring: '#7a5a3a' },
-    hint: { fill: '#d8bc83', edge: '#302219' },
+    rim: { fill: '#f6e5bf', edge: '#382015' },
+    hint: { fill: '#fff1c2', edge: '#352315' },
     dim: 0.82,
     highlight: '#ffd34d',
     target: '#7dff9a',
@@ -57,7 +59,8 @@ export const THEMES: Record<Theme, BoardTheme> = {
     number: '#e2e7ef',
     white: { base: '#eef1f6', light: '#ffffff', dark: '#c3cad6', ring: '#a9b2c2' },
     black: { base: '#ff6b5a', light: '#ff9585', dark: '#d1453a', ring: '#b8382f' },
-    hint: { fill: '#a7c9c0', edge: '#14221f' },
+    rim: { fill: '#dbe9f3', edge: '#0c1721' },
+    hint: { fill: '#66d9c2', edge: '#10221f' },
     dim: 0.82,
     highlight: '#ffd166',
     target: '#4ce0b3',
@@ -76,7 +79,8 @@ export const THEMES: Record<Theme, BoardTheme> = {
     number: '#fff9e8',
     white: { base: '#efe8da', light: '#ffffff', dark: '#c8bba1', ring: '#d4af37' },
     black: { base: '#1c1f22', light: '#4a5056', dark: '#050607', ring: '#d4af37' },
-    hint: { fill: '#d1c493', edge: '#10261d' },
+    rim: { fill: '#f2d78b', edge: '#071f16' },
+    hint: { fill: '#f3d17a', edge: '#0b2119' },
     dim: 0.82,
     highlight: '#ffe08a',
     target: '#9effc8',

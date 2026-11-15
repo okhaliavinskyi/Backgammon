@@ -9,6 +9,17 @@ for (const [name, th] of Object.entries(THEMES)) {
     if (best < 3) fails.push(`${name}: hint vs ${bgName} ${bg} = ${best.toFixed(2)}`);
   }
 }
+let rimPairs = 0;
+for (const [name, th] of Object.entries(THEMES)) {
+  let minimum = Infinity;
+  for (const [bgName, bg] of Object.entries({ field: th.field, pointA: th.pointA, pointB: th.pointB, white: th.white.base, black: th.black.base })) {
+    const contrast = Math.max(ratio(th.rim.fill, bg), ratio(th.rim.edge, bg));
+    rimPairs++; minimum = Math.min(minimum, contrast);
+    if (contrast < 3) fails.push(`${name}: checker rim vs ${bgName} = ${contrast.toFixed(2)}`);
+  }
+  console.log(`${name}: checker rim minimum contrast ${minimum.toFixed(2)}:1`);
+}
+if (rimPairs !== 15) fails.push(`checker rim pairs ${rimPairs}, expected 15`);
 let numberPairs = 0; let numberMin = Infinity;
 for (const [name, th] of Object.entries(THEMES)) {
   for (const [bgName, bg] of Object.entries({ frame: th.frame, frameDark: th.frameDark })) {
