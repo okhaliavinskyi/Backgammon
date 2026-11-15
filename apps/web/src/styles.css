@@ -873,22 +873,23 @@ input:focus {
 .undo-send, .center-actions .btn.gold, .controls .btn.gold { position: relative; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .countdown { animation: none; opacity: 0; } }
 
-.board-wrap.vertical { min-height: 0; aspect-ratio: 660 / 1000; width: min(100%, calc((100dvh - 120px) * 0.66)); --die: 8cqw; }
-.board-wrap.vertical .dice-tray, .board-wrap.vertical .dice-tray.single { top: 43.8%; }
-.board-wrap.vertical .dice-tray.right { left: 75%; }
-.board-wrap.vertical .dice-tray.left { left: 25%; }
-.board-wrap.vertical .center-actions { top: 72%; left: 50%; }
-.board-wrap.vertical .toast { top: 30%; left: 50%; }
-.board-wrap.vertical .ck.dragging { filter: drop-shadow(10px 0 8px rgba(0, 0, 0, 0.45)); }
-.board-wrap.vertical .cup-layer { left: 50%; top: 72%; }
-.phone-game .game-top { gap: 6px; }
-.phone-game .score { display: block; flex: none; }
-.compact-player { display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; font-size: 12px; }
-.compact-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.phone-game .game-top .compact-player { flex: 1; justify-content: flex-end; }
-.phone-game .controls { flex-wrap: wrap; gap: 4px; }
-.phone-game .controls .compact-player { margin-right: auto; }
-.phone-game .controls .status { flex: none; font-size: 12px; }
-.phone-game .controls .btn { padding: 8px 10px; }
-.phone-game .clock { font-size: 12px; padding: 2px 4px; }
+
+/* Portrait phone composition: unrotated board, both players below it. */
+.desktop-hud { display: contents; }
+.phone-game { justify-content: flex-start; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); gap: 12px; }
+.phone-game .game-top { gap: 8px; padding-top: 0; }
+.phone-game .score { grid-template-columns: 1fr; gap: 3px; }
+.phone-game .score small { font-size: 11px; }
+.board-wrap.compact-board { min-height: 0; aspect-ratio: 1000 / 1100; width: min(100%, calc((100dvh - 290px) * 1000 / 1100)); margin-top: clamp(12px, 7dvh, 56px); --die: 8cqw; }
+.mobile-hud { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 108px minmax(0, 1fr); align-items: stretch; gap: 8px; margin-top: auto; min-height: 164px; }
+.mobile-hud .pbar { flex-direction: column; justify-content: center; text-align: center; padding: 10px 4px; gap: 8px; }
+.mobile-hud .pchip { width: 28px; height: 28px; flex: none; }
+.mobile-hud .pinfo { width: 100%; }
+.mobile-hud .pname { justify-content: center; flex-wrap: wrap; white-space: normal; overflow-wrap: anywhere; font-size: 12px; gap: 3px; }
+.mobile-hud .pmeta { font-size: 10px; margin-top: 6px; }
+.mobile-hud .tag { font-size: 9px; }
+.mobile-hud .clock { margin: 0; font-size: 12px; padding: 3px 5px; }
+.mobile-hud .controls { width: 100%; flex-direction: column; justify-content: center; flex-wrap: nowrap; gap: 8px; }
+.mobile-hud .controls .status { flex: none; text-align: center; font-size: 12px; }
+.mobile-hud .controls .btn { width: 100%; padding: 9px 4px; font-size: 12px; }
 .phone-more { position: absolute; z-index: 10; bottom: 12px; left: 8px; right: 8px; background: var(--bg); border: 1px solid var(--panel-b); border-radius: 12px; padding: 8px; box-shadow: 0 6px 30px #0008; }

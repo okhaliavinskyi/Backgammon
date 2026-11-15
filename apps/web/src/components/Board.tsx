@@ -23,7 +23,7 @@ import type { Theme } from '../lib/settings';
 
 export interface BoardProps {
   board: BoardT;
-  vertical: boolean;
+  cross?: 800 | 1100;
   variant: Variant;
   viewer: Color;
   theme: Theme;
@@ -45,7 +45,7 @@ export interface BoardProps {
 
 // ───────────────────────────── static board ─────────────────────────────
 
-const Defs = ({ th, id, vertical }: { th: BoardTheme; id: string; vertical: boolean }) => (
+const Defs = ({ th, id }: { th: BoardTheme; id: string }) => (
   <defs>
     <filter id={`${id}-grain`} x="0" y="0" width="100%" height="100%">
       <feTurbulence type="fractalNoise" baseFrequency="0.0035 0.09" numOctaves="3" seed="7" />
@@ -58,10 +58,10 @@ const Defs = ({ th, id, vertical }: { th: BoardTheme; id: string; vertical: bool
       <feComposite in2="SourceGraphic" operator="in" />
     </filter>
     <filter id={`${id}-shadow`} x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx={vertical ? 3 : 0} dy={vertical ? 0 : 3} stdDeviation="2.5" floodColor="#000" floodOpacity="0.45" />
+      <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000" floodOpacity="0.45" />
     </filter>
     <filter id={`${id}-lift`} x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx={vertical ? 8 : 0} dy={vertical ? 0 : 8} stdDeviation="5" floodColor="#000" floodOpacity="0.45" />
+      <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#000" floodOpacity="0.45" />
     </filter>
     <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="4" result="b" />
@@ -94,7 +94,7 @@ function pointPath(slot: number, g: Geometry): string {
   return `M${cx - half},${BOTTOM} L${cx + half},${BOTTOM} L${cx},${BOTTOM - POINT_LEN} Z`;
 }
 
-const StaticBoard = memo(function StaticBoard({ th, id, g, vertical }: { th: BoardTheme; id: string; g: Geometry; vertical: boolean }) {
+const StaticBoard = memo(function StaticBoard({ th, id, g }: { th: BoardTheme; id: string; g: Geometry }) {
   const { TOP, BOTTOM, MID_Y, VB_H } = g;
   const fieldRects = [
     { x: LEFT_X, w: PW * 6 },
@@ -121,7 +121,7 @@ const StaticBoard = memo(function StaticBoard({ th, id, g, vertical }: { th: Boa
       <rect x={TRAY_X} y={TOP} width={TRAY_W} height={BOTTOM - TOP} rx="8" fill={th.tray} />
       <line x1={TRAY_X + 8} y1={MID_Y} x2={TRAY_X + TRAY_W - 8} y2={MID_Y} stroke={th.inlay} strokeOpacity="0.45" />
       {Array.from({ length: 24 }, (_, s) => (
-        <text key={s} transform={vertical ? `rotate(-90 ${slotX(s)} ${isTop(s) ? TOP - 7 : BOTTOM + 17})` : undefined} x={slotX(s)} y={isTop(s) ? TOP - 7 : BOTTOM + 17} fontSize="12" textAnchor="middle" fill={th.inlay} opacity="0.75" style={{ userSelect: 'none' }}>
+        <text key={s} x={slotX(s)} y={isTop(s) ? TOP - 7 : BOTTOM + 17} fontSize="12" textAnchor="middle" fill={th.inlay} opacity="0.75" style={{ userSelect: 'none' }}>
           {s + 1}
         </text>
       ))}
@@ -143,7 +143,7 @@ interface CheckerRender {
 }
 
 export function BoardView(p: BoardProps) {
-  const g = useMemo(() => geom(p.vertical ? 660 : 800), [p.vertical]);
+  const g = useMemo(() => geom(p.cross ?? 800), [p.cross]);
   const { TOP, BOTTOM, MID_Y, VB_H, checkerPos, offPos, barPos, locAt } = g;
   const th = THEMES[p.theme];
   const uid = 'b' + p.theme;
@@ -192,9 +192,7 @@ export function BoardView(p: BoardProps) {
   const toSvg = (e: React.PointerEvent) => {
     const svg = svgRef.current!;
     const r = svg.getBoundingClientRect();
-    const X = ((e.clientX - r.left) / r.width) * (p.vertical ? 660 : VB_W);
-    const Y = ((e.clientY - r.top) / r.height) * (p.vertical ? VB_W : 800);
-    return p.vertical ? { x: Y, y: 660 - X } : { x: X, y: Y };
+    return { x: ((e.clientX - r.left) / r.width) * VB_W, y: ((e.clientY - r.top) / r.height) * VB_H };
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -237,7 +235,7 @@ export function BoardView(p: BoardProps) {
     <svg
       ref={svgRef}
       className="board-svg"
-      viewBox={p.vertical ? '0 0 660 1000' : `0 0 ${VB_W} ${VB_H}`}
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
       role="img"
       aria-label={p.label}
       onPointerDown={onPointerDown}
@@ -248,9 +246,9 @@ export function BoardView(p: BoardProps) {
         setGhost(null);
       }}
     >
-      <Defs th={th} id={uid} vertical={p.vertical} />
-      <g transform={p.vertical ? 'matrix(0 1 -1 0 660 0)' : undefined}>
-      <StaticBoard th={th} id={uid} g={g} vertical={p.vertical} />
+      <Defs th={th} id={uid} />
+      <g>
+      <StaticBoard th={th} id={uid} g={g} />
 
       {/* last move markers */}
       {[...p.lastMove].map((loc) =>
@@ -306,7 +304,7 @@ export function BoardView(p: BoardProps) {
                   </g>
                 )}
                 {c.top && c.count > 5 && (
-                  <text transform={p.vertical ? 'rotate(-90)' : undefined} y="0" dominantBaseline="central" fontSize="26" fontWeight="700" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
+                  <text y="0" dominantBaseline="central" fontSize="26" fontWeight="700" textAnchor="middle" fill={c.color === 0 ? '#3a2a14' : '#fff'}>
                     {c.count}
                   </text>
                 )}

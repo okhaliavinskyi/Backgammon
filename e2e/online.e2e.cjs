@@ -170,9 +170,12 @@ for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of
  const props=f?.memoizedProps;
  const offenders=[...document.querySelectorAll('g.ck')].filter(c=>{const q=c.getBoundingClientRect();return q.left<r.left-.1||q.right>r.right+.1||q.top<r.top-.1||q.bottom>r.bottom+.1}).map(c=>c.getAttribute('data-checker')||c.getAttribute('style'));
  const stacks=[];for(const color of [0,1])for(const loc of new Set([...svg.querySelectorAll('g.ck')].map(c=>c.dataset.loc))){const cs=[...svg.querySelectorAll(`g.ck[data-color="${color}"][data-loc="${loc}"]`)];if(cs.length>=6&&loc!=='off'){const group=document.createElementNS('http://www.w3.org/2000/svg','g');cs.forEach(c=>group.append(c.cloneNode(true)));svg.append(group);stacks.push({n:cs.length,height:group.getBBox().height});group.remove();}}
- return {stacks,ratio:r.height/innerHeight,diameter:document.querySelector('g.ck circle').getBoundingClientRect().width,vertical:!!document.querySelector('.board-wrap.vertical'),rings:document.querySelectorAll('[data-hint="movable"]').length,expected:props?props.movable.size-(props.selected&&props.movable.has(props.selected)?1:0):null,targets:document.querySelectorAll('[data-hint="target"],[data-hint="target-off"]').length,expectedTargets:props?.targets.size,outside:offenders};});
+ return {stacks,ratio:r.height/innerHeight,diameter:document.querySelector('g.ck circle').getBoundingClientRect().width,rotated:!!svg.querySelector('[transform*="matrix(0 1"]'),viewBox:svg.getAttribute('viewBox'),rings:document.querySelectorAll('[data-hint="movable"]').length,expected:props?props.movable.size-(props.selected&&props.movable.has(props.selected)?1:0):null,targets:document.querySelectorAll('[data-hint="target"],[data-hint="target-off"]').length,expectedTargets:props?.targets.size,outside:offenders};});
  console.log(width+' '+theme+' '+JSON.stringify(values));
- if(process.env.VERTICAL_GATE){if(width===360&&(values.ratio<.65||values.diameter<30))throw Error('vertical measurement '+JSON.stringify(values));if(width!==360&&values.vertical)throw Error('expected horizontal '+width);if(values.outside.length)throw Error('checkers outside board: '+values.outside.join(','));}
+ if(values.rotated || !values.viewBox.startsWith('0 0 1000 '))throw Error('board must never rotate '+JSON.stringify(values));
+ if(width===360&&values.viewBox!=='0 0 1000 1100')throw Error('portrait board geometry '+values.viewBox);
+ if(width!==360&&values.viewBox!=='0 0 1000 800')throw Error('desktop board geometry '+values.viewBox);
+ if(values.outside.length)throw Error('checkers outside board: '+values.outside.join(','));
  if(stacksBad(values))throw Error('stack too high '+JSON.stringify(values));
  if(process.env.HINT_GATE&&(values.rings!==values.expected||values.targets!==values.expectedTargets))throw Error('hint count mismatch '+JSON.stringify(values));
  fs.mkdirSync('docs/design/impl-screens',{recursive:true});await p.screenshot({path:`docs/design/impl-screens/${process.env.TASK||'task2'}-${width}-${theme}.png`});count++;await ctx.close();
@@ -203,7 +206,7 @@ else {const selected=await p.locator('[data-hint="selected"]').boundingBox();awa
 await p.waitForTimeout(100);const after=await p.locator('[data-pips="me"]').textContent();
 if(after===before)throw Error(mode+' failed: pips unchanged '+before);
 console.log(mode+' input pips '+before+' -> '+after);
-}await p.setViewportSize({width:780,height:360});await p.waitForTimeout(50);if(await p.locator('.board-wrap.vertical').count())throw Error('landscape is vertical');console.log('landscape 780x360 horizontal; console errors '+errors.length);await b.close();if(errors.length)throw Error(errors.join('\n'));
+}await p.setViewportSize({width:780,height:360});await p.waitForTimeout(50);if(await p.locator('.board-wrap.compact-board').count())throw Error('landscape retained portrait sizing');console.log('landscape 780x360 horizontal; console errors '+errors.length);await b.close();if(errors.length)throw Error(errors.join('\n'));
 
 }
 
@@ -301,7 +304,7 @@ async function verifyGhosts(b) {
  window.reviewRender=(kind)=>{const b=initialBoard('short');b.pts[0].fill(0);b.pts[1].fill(0);b.pts[0][0]=15;b.pts[1][0]=15;
  if(kind==='hit'){b.pts[1][0]=14;b.pts[1][22]=1;}
  if(kind==='stack'){b.pts[0][0]=5;b.pts[0][6]=10;}
- root.render(<BoardView board={b} vertical={false} variant="short" viewer={0} mover={kind==='off'?1:0} theme="wood" moveMs={0} movable={new Set()} dimMovable={new Set()} selected="s23" targets={new Set([kind==='hit'?'s22':kind==='stack'?'s17':'off'])} lastMove={new Set()} hints={true} onLocClick={()=>{}} onDrop={()=>{}}/>);};window.reviewRender('hit');`;
+ root.render(<BoardView board={b}  variant="short" viewer={0} mover={kind==='off'?1:0} theme="wood" moveMs={0} movable={new Set()} dimMovable={new Set()} selected="s23" targets={new Set([kind==='hit'?'s22':kind==='stack'?'s17':'off'])} lastMove={new Set()} hints={true} onLocClick={()=>{}} onDrop={()=>{}}/>);};window.reviewRender('hit');`;
  const code=require('child_process').execFileSync(path.resolve('node_modules/.bin/esbuild'),['--bundle','--format=iife','--platform=browser','--loader=tsx','--jsx=automatic','--tsconfig=apps/web/tsconfig.json','--sourcefile='+path.resolve('e2e/ghost-fixture.tsx')],{input:entry,encoding:'utf8',maxBuffer:8*1024*1024});
  const p=await b.newPage({viewport:{width:1100,height:900}});p.on('pageerror',e=>errors.push('ghost: '+e));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
  await p.setContent('<div id="root" style="width:1000px;height:800px"></div>');await p.addScriptTag({content:code});

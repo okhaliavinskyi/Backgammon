@@ -92,13 +92,13 @@ export function assignIds(prev: Map<Loc, number[]> | null, counts: Map<Loc, numb
   return next;
 }
 
-/** Board-local coordinates; callers rotate the 660-unit board clockwise. */
-export function geom(cross: 800 | 660) {
+/** Unrotated board coordinates; portrait phones use longer points. */
+export function geom(cross: 800 | 1100) {
   const VB_H = cross;
   const TOP = FRAME;
   const BOTTOM = cross - FRAME;
   const MID_Y = cross / 2;
-  const POINT_LEN = cross === 660 ? 280 : 320;
+  const POINT_LEN = cross === 1100 ? 440 : 320;
 function checkerPos(slot: number, k: number, n: number): { x: number; y: number } {
   const sp = stackSpacing(n);
   const x = slotX(slot);
