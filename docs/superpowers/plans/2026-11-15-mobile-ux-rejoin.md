@@ -506,3 +506,8 @@ Round 3 (Opus, fresh context) — 0 P0/P1; rounds 1-2 fixes confirmed by executi
 
 - Removed only margin-top:clamp(12px,7dvh,56px) from the compact board wrapper; retained the existing12px layout gap. No geometry, width, height, aspect-ratio or checker-size changes.
 - Live360x780 before/after in wood/minimal/malachite: header-to-board gap66.59375->12px; board344x431.953125px unchanged; viewBox0 0 876 1100 unchanged; checker diameter22.775726px unchanged. All3 pages console errors0. Build EXIT=0, live measurement check EXIT=0. Added compact-gap-360-{theme}.png. No push/deploy.
+
+### Owner revision: bottom-align players and controls (2026-11-15)
+
+- Changed only the mobile HUD top margin from8px to auto, pushing its player cards and action row to the lower screen edge while retaining12px bottom/safe-area padding.
+- Live360x780 wood/minimal/malachite: HUD top518.140625->645.203125px, HUD bottom gap139.0625->12px. Board top66.1875px, header gap12px, width344px, height431.953125px, viewBox0 0 876 1100 and checker22.775726px all unchanged. Build and measured browser check EXIT=0; console errors0 on3 pages. Added bottom-hud-360-{theme}.png. No push/deploy.
