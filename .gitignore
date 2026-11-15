@@ -7,3 +7,4 @@ test-results
 playwright-report
 .DS_Store
 e2e-shots
+/.claude/settings.local.json

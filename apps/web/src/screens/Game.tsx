@@ -19,9 +19,10 @@ import {
   turnState,
   type Memo,
 } from '@nardy/core';
+import { SettingsScreen } from './Menus';
 import { BoardView } from '../components/Board';
 import { Cube, DiceCup, Die } from '../components/Dice';
-import { Loc, locOf, posOfSlot } from '../components/geometry';
+import { FIELD_END, FRAME, Loc, locOf, posOfSlot } from '../components/geometry';
 import { actor, useGame } from '../controllers/store';
 import { useT } from '../lib/i18n';
 import { diceMs, moveMs, useSettings } from '../lib/settings';
@@ -32,6 +33,19 @@ interface Pending {
   seq: number;
   chains: Step[][];
   ts: TurnState;
+}
+
+function useCompactLayout(): boolean {
+  const query = '(orientation: portrait) and (max-width: 767px)';
+  const [compact, setCompact] = useState(() => matchMedia(query).matches);
+  useEffect(() => {
+    const media = matchMedia(query);
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return compact;
 }
 
 function useNow(active: boolean, every = 250): number {
@@ -59,6 +73,8 @@ function stepSound(s: Step) {
 
 export function GameScreen({ onExit }: { onExit: () => void }) {
   const T = useT();
+  const compact = useCompactLayout();
+  const [moreOpen, setMoreOpen] = useState(false);
   const g = useGame();
   const st = useSettings();
   const m = g.match!;
@@ -142,13 +158,21 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   const mover = m.phase === 'move' ? m.turn : null;
   const legal = useMemo(() => (pending ? legalNextSteps(pending.ts, memoRef.current) : []), [pending]);
-  const canInteract = !!pending && !animating && !busy;
+  const [sent, setSent] = useState(false);
+  const [doubled, setDoubled] = useState(false);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => { setSent(false); setDoubled(false); if (g.error) setPaused(true); }, [m, g.error, g.conn]);
+  useEffect(() => setPaused(false), [m.seq, m.gameNo]);
+  const canInteract = !!pending && !animating && !busy && !sent;
   const movable = useMemo(() => {
     const s = new Set<Loc>();
     if (!canInteract || mover === null) return s;
     for (const x of legal) s.add(locOf(mover, x.from, viewer, variant));
     return s;
   }, [legal, canInteract, mover, viewer, variant]);
+
+  const dimSet = useRef(new Set<Loc>());
+  if (!busy) dimSet.current = movable;
 
   // Auto-select when only one checker can move.
   useEffect(() => {
@@ -170,18 +194,22 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   const turnDone = !!pending && legal.length === 0;
 
+  const UNDO_MS = 1200;
+  const [sendAt, setSendAt] = useState<number | null>(null);
   const submit = useCallback(() => {
-    if (!pending) return;
+    if (!pending || sent) return;
+    setSent(true);
+    setSendAt(null);
+    useGame.setState({ error: null });
     submittedSeq.current = pending.seq;
     ctrl.move(pending.chains.flat());
-  }, [pending, ctrl]);
-
+  }, [pending, ctrl, sent]);
   useEffect(() => {
-    if (turnDone && pending && pending.chains.length > 0 && st.autoConfirm) {
-      const id = setTimeout(submit, mMs + 200);
-      return () => clearTimeout(id);
-    }
-  }, [turnDone, pending, st.autoConfirm, submit, mMs]);
+    if (sent || paused || !(turnDone && pending && pending.chains.length > 0 && st.autoConfirm && !busy)) { setSendAt(null); return; }
+    setSendAt(Date.now() + UNDO_MS);
+    const id = setTimeout(submit, UNDO_MS);
+    return () => clearTimeout(id);
+  }, [turnDone, pending, st.autoConfirm, submit, busy, sent, paused]);
 
   const playChain = (steps: Step[]) => {
     if (!pending) return;
@@ -217,19 +245,19 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     ctrl.roll();
   }, [ctrl]);
 
+  const DOUBLE_MS = 2000;
   useEffect(() => {
-    if (rollActor && st.autoRoll && !mayDouble) {
-      const id = setTimeout(doRoll, 450);
-      return () => clearTimeout(id);
-    }
-  }, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq]);
+    if (!rollActor || !st.autoRoll || doubled || g.conn !== 'open') return;
+    const id = setTimeout(doRoll, mayDouble ? DOUBLE_MS : 450);
+    return () => clearTimeout(id);
+  }, [rollActor, st.autoRoll, mayDouble, doRoll, m.seq, doubled, g.conn]);
 
   const [shaking, setShaking] = useState(false);
   const [impulse, setImpulse] = useState(0);
   const [motionOk, setMotionOk] = useState(!needsPermission());
   const shakeEnabled = st.shake && motionSupported();
   useEffect(() => {
-    if (!rollActor || !shakeEnabled || !motionOk) return;
+    if (!rollActor || st.autoRoll || !shakeEnabled || !motionOk) return;
     return listenShake({
       onShakeStart: () => setShaking(true),
       onImpulse: (s) => {
@@ -242,7 +270,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         doRoll();
       },
     });
-  }, [rollActor, shakeEnabled, motionOk, doRoll]);
+  }, [rollActor, st.autoRoll, shakeEnabled, motionOk, doRoll]);
 
   // Your-turn chime in online games.
   const me = viewer;
@@ -265,9 +293,13 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   // ───────── board events ─────────
   const onLocClick = (loc: Loc) => {
     unlockAudio();
-    if (rollActor && !mayDouble) return doRoll();
+    if (rollActor && !mayDouble && !st.autoRoll) return doRoll();
     if (!canInteract) return;
     if (selected && dests.has(loc)) return playChain(dests.get(loc)!);
+    if (movable.has(loc) && pending && mover !== null) {
+      const ds = destinationsFrom(pending.ts, locToPos(loc, mover), memoRef.current);
+      if (ds.length === 1) return playChain(ds[0].steps);
+    }
     if (movable.has(loc)) return setSelected(selected === loc ? null : loc);
     setSelected(null);
   };
@@ -279,6 +311,8 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   // ───────── derived view ─────────
   const board = pending ? pending.ts.board : shown;
+  const showTray = board.off.some((n) => n > 0) || targets.has('off');
+  const boardWidth = showTray ? 1000 : FIELD_END + FRAME;
   const lastMove = useMemo(() => {
     const s = new Set<Loc>();
     const ev = m.event;
@@ -336,6 +370,9 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   const canClaim = g.mode === 'online' && oppSlot && !oppSlot.connected && oppSlot.disconnectedAt !== null && serverNow - oppSlot.disconnectedAt > CLAIM_AFTER_MS && m.phase !== 'matchover';
 
   const [confirmResign, setConfirmResign] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (settingsOpen) settingsDialog.current?.showModal(); }, [settingsOpen]);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -369,6 +406,33 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     const p = g.players[c];
     const clk = clockFor(c);
     const active = act === c;
+    if (compact) {
+      const running = act === c && clocks?.turnStartedAt != null;
+      const elapsed = running ? Math.max(0, serverNow - clocks!.turnStartedAt!) : 0;
+      const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
+      const moveLeft = clocks?.moveTimerMs ? Math.max(0, clocks.moveTimerMs - elapsed) : null;
+      const pieceLabel = c === 0 ? T.white : st.theme === 'minimal' ? T.red : T.black;
+      return <div className={'pbar player-card' + (active ? ' active' : '')}>
+        <div className="player-piece">
+          <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
+          <span>{pieceLabel}</span>
+        </div>
+        <div className="player-card-body">
+          <div className="pname" title={p?.name}>{p?.name ?? '—'}</div>
+          {p && !p.connected && <span className="tag warn">{T.offline}</span>}
+          <div className="player-card-state">
+            <i className={'turn-light' + (active ? ' active' : '')} title={active ? T.hotseatTurn : undefined} />
+            <span className="player-score" title={T.score}>{m.score[c]}</span>
+            {m.cube.owner === c && m.settings.cube && <Cube value={m.cube.value} />}
+          </div>
+          <div className="pmeta" data-pips={c === viewer ? 'me' : 'opp'}>{pipCount(board, c)} {T.pips} · {board.off[c]}/15</div>
+        </div>
+        <div className="player-timers">
+          <span className="bank-time" title={T.bank}>{bankLeft === null ? '—' : fmt(bankLeft)}</span>
+          <span className={'move-time' + (clk?.low ? ' low' : '')} title={T.moveTimer}>{moveLeft === null ? '—' : fmt(moveLeft)}</span>
+        </div>
+      </div>;
+    }
     return (
       <div className={'pbar' + (active ? ' active' : '') + (bottom ? ' bottom' : '')}>
         <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
@@ -379,7 +443,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {p?.isAi && g.aiLevel && <span className="tag">{T[g.aiLevel]}</span>}
             {p && !p.connected && <span className="tag warn">{T.offline}</span>}
           </div>
-          <div className="pmeta">
+          <div className="pmeta" data-pips={c === viewer ? 'me' : 'opp'}>
             {pipCount(board, c)} {T.pips} · {board.off[c]}/15
           </div>
         </div>
@@ -392,41 +456,50 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   const nextIn = clocks?.nextGameAt ? Math.max(0, clocks.nextGameAt - (g.mode === 'online' ? serverNow : now)) : null;
 
   return (
-    <div className={'game theme-' + st.theme}>
+    <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '')}>
       <header className="game-top">
         <button className="icon-btn" onClick={onExit} aria-label={T.toMenu}>
           ←
         </button>
         <div className="score">
-          <span>{nameOf(0)}</span>
+          {!compact && <span>{nameOf(0)}</span>}
           <b>
             {m.score[0]} : {m.score[1]}
           </b>
-          <span>{nameOf(1)}</span>
+          {!compact && <span>{nameOf(1)}</span>}
           <small>
             {T.matchLength} {m.settings.matchLength} · {variant === 'long' ? T.long : T.short}
             {m.crawford ? ` · ${T.crawford}` : ''}
           </small>
         </div>
-        {g.mode === 'online' ? (
-          <button className="icon-btn" onClick={() => setChatOpen((o) => !o)} aria-label={T.chat}>
-            💬{g.chat.length > 0 && !chatOpen ? <i className="dot" /> : null}
+        <div className="game-top-actions">
+          {g.mode === 'online' && !compact && <button className="icon-btn" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
+            💬{g.chat.length > 0 && !chatOpen && <i className="dot" />}
+          </button>}
+          <button className="icon-btn settings-button" aria-label={T.settings} onClick={() => setSettingsOpen(true)}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="m9.5 3-.7 2.4-1.6.9-2.4-.6-2.5 4.4 1.8 1.8v1.9l-1.8 1.8 2.5 4.3 2.4-.6 1.6 1 .7 2.4h5l.7-2.4 1.6-1 2.4.6 2.5-4.3-1.8-1.8v-1.9l1.8-1.8-2.5-4.4-2.4.6-1.6-.9-.7-2.4z" />
+              <circle cx="12" cy="12.8" r="3.2" />
+            </svg>
           </button>
-        ) : (
-          <span className="icon-btn ghost" />
-        )}
+        </div>
       </header>
 
-      {playerBar(opp)}
+      {!compact && playerBar(opp)}
 
-      <div className="board-wrap">
+      <div className={'board-wrap' + (compact ? ' compact-board' : '')} style={{
+        aspectRatio: `${boardWidth} / ${compact ? 1100 : 800}`,
+        width: compact ? `min(100%, calc((100dvh - 290px) * ${boardWidth} / 1100))` : `min(100%, 1100px, calc((100dvh - 300px) * ${boardWidth} / 800))`,
+      }}>
         <BoardView
+          cross={compact ? 1100 : 800}
           board={board}
           variant={variant}
           viewer={viewer}
           theme={st.theme}
           moveMs={mMs}
           movable={movable}
+          dimMovable={dimSet.current}
           hints={st.hints}
           selected={selected}
           targets={targets}
@@ -463,16 +536,17 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         {/* roll prompt */}
         {rollActor && !shaking && (
           <div className="center-actions">
-            <button className="btn primary big" onClick={doRoll}>
+            {!st.autoRoll && <button className="btn primary big" onClick={doRoll}>
               🎲 {T.roll}
-            </button>
-            {mayDouble && (
-              <button className="btn gold" onClick={() => ctrl.double()}>
+            </button>}
+            {mayDouble && !doubled && !compact && (
+              <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
                 ×2 {T.double}
+                {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
               </button>
             )}
-            {shakeEnabled && motionOk && <div className="hint">{T.shakeOrTap}</div>}
-            {shakeEnabled && !motionOk && (
+            {!st.autoRoll && shakeEnabled && motionOk && <div className="hint">{T.shakeOrTap}</div>}
+            {!st.autoRoll && shakeEnabled && !motionOk && (
               <button
                 className="btn small"
                 onClick={async () => {
@@ -571,18 +645,35 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         {g.conn !== 'open' && <div className="conn-banner">{g.conn === 'connecting' ? T.connecting : T.reconnecting}</div>}
       </div>
 
-      {playerBar(viewer, true)}
+      {!compact && playerBar(viewer, true)}
 
+      <div className={compact ? 'mobile-hud' : 'desktop-hud'}>
+      {compact && playerBar(viewer, true)}
       <div className="controls">
+        {compact && <div className="quick-social">
+          {g.mode === 'online' && <button className="btn quick-chat" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
+            💬 {T.chat}{g.chat.length > 0 && !chatOpen && <i className="dot" />}
+          </button>}
+          <div className="quick-reactions">
+            {(['👍', '😂', '🔥', '🤝'] as const).map((emoji) => <button key={emoji} type="button" onClick={() => ctrl.emoji(emoji)} aria-label={emoji}>{emoji}</button>)}
+          </div>
+        </div>}
         <span className="status">{statusText}</span>
-        {pending && (
+        {pending && !sent && pending.chains.length > 0 && (
           <>
-            <button className="btn" disabled={pending.chains.length === 0 || busy} onClick={undo}>
-              ↶ {T.undo}
-            </button>
-            <button className="btn primary" disabled={!turnDone || busy} onClick={submit}>
+            {sendAt !== null ? (
+              <button className="btn primary undo-send" onClick={undo}>
+                ↶ {T.undo}
+                <i className="countdown" style={{ ['--ms' as string]: `${UNDO_MS}ms` }} key={sendAt} />
+              </button>
+            ) : (
+              <button className="btn" disabled={pending.chains.length === 0 || busy} onClick={undo}>
+                ↶ {T.undo}
+              </button>
+            )}
+            {(!st.autoConfirm || paused) && <button className="btn primary" disabled={!turnDone || busy} onClick={submit}>
               ✓ {T.done}
-            </button>
+            </button>}
           </>
         )}
         {canClaim && (
@@ -590,13 +681,23 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {T.claimWin}
           </button>
         )}
-        {m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && (
+        {!compact && m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && (
           <button className="btn subtle" onClick={() => setConfirmResign(true)}>
             ⚑ {T.resign}
           </button>
         )}
+        {compact && mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
+          ×2 {T.double}
+          {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
+        </button>}
+        {compact && <button className="icon-btn" aria-label={T.more} onClick={() => setMoreOpen((open) => !open)}>⋯</button>}
       </div>
 
+      {compact && playerBar(opp)}
+      </div>
+
+      {(!compact || moreOpen) && <div className={compact ? 'phone-more' : undefined}>
+      {compact && <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}>✕</button>}
       <div className="emoji-bar">
         {EMOJIS.map((e) => (
           <button key={e} onClick={() => ctrl.emoji(e)} aria-label={e}>
@@ -604,6 +705,9 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
           </button>
         ))}
       </div>
+
+      {compact && <button className="btn subtle" onClick={() => { setMoreOpen(false); setConfirmResign(true); }}>⚑ {T.resign}</button>}
+      </div>}
 
       {chatOpen && g.mode === 'online' && (
         <aside className="chat">
@@ -634,6 +738,10 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
           </form>
         </aside>
       )}
+
+      {settingsOpen && <dialog ref={settingsDialog} className="game-settings" aria-label={T.settings} onClose={() => setSettingsOpen(false)} onClick={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
+        <SettingsScreen nav={() => setSettingsOpen(false)} />
+      </dialog>}
 
       {confirmResign && (
         <div className="modal-layer">

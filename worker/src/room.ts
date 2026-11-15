@@ -62,6 +62,8 @@ export interface RoomInfo {
   settings?: RoomSettings;
   hasPassword?: boolean;
   seatsTaken?: number;
+  seatsOffline?: number;
+  offlineName?: string | null;
   status?: RoomView['status'];
 }
 
@@ -107,6 +109,12 @@ export class RoomDO extends DurableObject<Env> {
     return true;
   }
 
+  private offlineSeat(): Color | null {
+    const s = this.s!;
+    for (const c of [0, 1] as Color[]) if (s.seats[c] && s.seats[c]!.disconnectedAt !== null) return c;
+    return null;
+  }
+
   async info(): Promise<RoomInfo> {
     const s = this.s;
     if (!s) return { exists: false };
@@ -116,6 +124,8 @@ export class RoomDO extends DurableObject<Env> {
       settings: s.settings,
       hasPassword: !!s.passHash,
       seatsTaken: s.seats.filter(Boolean).length,
+      seatsOffline: s.seats.filter((x) => x && x.disconnectedAt !== null).length,
+      offlineName: (() => { const c = this.offlineSeat(); return c === null ? null : s.seats[c]!.name; })(),
       status: this.status(),
     };
   }
@@ -196,7 +206,7 @@ export class RoomDO extends DurableObject<Env> {
           return ws.close(4401, 'bad_password');
         }
       }
-      const free = s.seats[0] === null ? 0 : s.seats[1] === null ? 1 : null;
+      const free = s.seats[0] === null ? 0 : s.seats[1] === null ? 1 : this.offlineSeat();
       if (free === null) {
         this.send(ws, { t: 'error', code: 'room_full' });
         return ws.close(4403, 'room_full');

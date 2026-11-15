@@ -10,12 +10,13 @@ interface Info {
   exists: boolean;
   hasPassword?: boolean;
   seatsTaken?: number;
+  seatsOffline?: number;
+  offlineName?: string | null;
 }
 
 /** /r/:id — password prompt, waiting room with share link, then the game. */
 export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   const T = useT();
-  const name = useSettings((s) => s.name) || T.you;
   const [info, setInfo] = useState<Info | null>(null);
   const [password, setPassword] = useState<string | null>(() => sessionStorage.getItem('nardy.pw.' + id));
   const [pwInput, setPwInput] = useState('');
@@ -33,11 +34,15 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   }, [id]);
 
   const hasToken = !!getToken(id);
-  const ready = info?.exists && (hasToken || !info.hasPassword || password !== null);
+  const full = !hasToken && info?.seatsTaken === 2;
+  const noSeat = full && !info?.seatsOffline;
+  const rejoin = full && !!info?.seatsOffline;
+  const ready = info?.exists && !noSeat && (hasToken || (!info.hasPassword && !rejoin) || password !== null);
+  const helloName = useSettings((s) => s.name) || (rejoin && info?.offlineName) || localStorage.getItem('nardy.name.' + id) || T.you;
 
   useEffect(() => {
     if (!ready || fatal) return;
-    const c = new RemoteController(id, name, password ?? undefined, (code) => {
+    const c = new RemoteController(id, helloName, password ?? undefined, (code) => {
       if (code === 'bad_password') {
         sessionStorage.removeItem('nardy.pw.' + id);
         setPassword(null);
@@ -55,15 +60,29 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   const link = `${location.origin}/r/${id}`;
 
   if (info === null) return <div className="screen center">{T.connecting}</div>;
-  if (!info.exists || fatal === 'room_full' || fatal === 'room_expired' || fatal === 'room_gone') {
+  if (!info.exists || noSeat || fatal === 'room_full' || fatal === 'room_expired' || fatal === 'room_gone') {
     return (
       <div className="screen center">
-        <p>{fatal === 'room_full' ? T.roomFull : T.roomNotFound}</p>
+        <p>{noSeat || fatal === 'room_full' ? T.roomFull : T.roomNotFound}</p>
         <button className="btn" onClick={() => nav('/online')}>
           ← {T.back}
         </button>
       </div>
     );
+  }
+  if (rejoin && (!ready || fatal === 'bad_password')) {
+    return <div className="screen form">
+      <button className="link" onClick={() => nav('/online')}>← {T.back}</button>
+      <h2>{T.rejoinAs} {info.offlineName}</h2>
+      {fatal === 'bad_password' && <p className="error">{T.badPassword}</p>}
+      <form onSubmit={(e) => { e.preventDefault(); localStorage.setItem('nardy.name.' + id, helloName); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
+        {info.hasPassword && <label className="field">
+          <span>{T.password}</span>
+          <input type="password" autoFocus value={pwInput} onChange={(e) => setPwInput(e.target.value)} />
+        </label>}
+        <button className="btn primary big">{T.rejoin}</button>
+      </form>
+    </div>;
   }
   if (!ready || fatal === 'bad_password') {
     return (

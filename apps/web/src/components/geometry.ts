@@ -7,7 +7,6 @@ import { BAR, Board, Color, OFF, Variant, toOther } from '@nardy/core';
  * and the viewer always moves counter-clockwise.
  */
 export const VB_W = 1000;
-export const VB_H = 800;
 export const FRAME = 24;
 export const PW = 64; // point width
 export const LEFT_X = FRAME;
@@ -17,11 +16,7 @@ export const RIGHT_X = BAR_X + BAR_W; // 468
 export const FIELD_END = RIGHT_X + PW * 6; // 852
 export const TRAY_X = FIELD_END + 20; // 872
 export const TRAY_W = 104;
-export const TOP = FRAME;
-export const BOTTOM = VB_H - FRAME;
-export const POINT_LEN = 320;
 export const R = 29;
-export const MID_Y = VB_H / 2;
 
 export function slotX(slot: number): number {
   if (slot <= 5) return RIGHT_X + (5 - slot) * PW + PW / 2;
@@ -32,31 +27,16 @@ export function slotX(slot: number): number {
 
 export const isTop = (slot: number) => slot >= 12;
 
+export const STACK_H = 5 * 2 * R;
+
 /** Spacing between stacked checkers on a point. */
 export function stackSpacing(n: number): number {
   if (n <= 5) return R * 2;
-  return (POINT_LEN - R * 2) / (n - 1);
-}
-
-export function checkerPos(slot: number, k: number, n: number): { x: number; y: number } {
-  const sp = stackSpacing(n);
-  const x = slotX(slot);
-  const y = isTop(slot) ? TOP + R + k * sp : BOTTOM - R - k * sp;
-  return { x, y };
+  return (STACK_H - R * 2) / (n - 1);
 }
 
 export const TRAY_CX = TRAY_X + TRAY_W / 2;
 export const SLAB_H = 14;
-
-/** Borne-off checkers are drawn as slabs in the tray: viewer bottom, opponent top. */
-export function offPos(mine: boolean, k: number): { x: number; y: number } {
-  return { x: TRAY_CX, y: mine ? BOTTOM - 10 - SLAB_H / 2 - k * (SLAB_H + 1) : TOP + 10 + SLAB_H / 2 + k * (SLAB_H + 1) };
-}
-
-export function barPos(mine: boolean, k: number): { x: number; y: number } {
-  const x = BAR_X + BAR_W / 2;
-  return { x, y: mine ? MID_Y + 48 + k * 26 : MID_Y - 48 - k * 26 };
-}
 
 /** Path position of `color` → display slot for `viewer`. */
 export function slotOf(color: Color, pos: number, viewer: Color, variant: Variant): number {
@@ -111,3 +91,48 @@ export function assignIds(prev: Map<Loc, number[]> | null, counts: Map<Loc, numb
   for (const [loc, ids] of next) if (ids.length === 0) next.delete(loc);
   return next;
 }
+
+/** Unrotated board coordinates; portrait phones use longer points. */
+export function geom(cross: 800 | 1100) {
+  const VB_H = cross;
+  const TOP = FRAME;
+  const BOTTOM = cross - FRAME;
+  const MID_Y = cross / 2;
+  const POINT_LEN = cross === 1100 ? 440 : 320;
+function checkerPos(slot: number, k: number, n: number): { x: number; y: number } {
+  const sp = stackSpacing(n);
+  const x = slotX(slot);
+  const y = isTop(slot) ? TOP + R + k * sp : BOTTOM - R - k * sp;
+  return { x, y };
+}
+
+/** Borne-off checkers are drawn as slabs in the tray: viewer bottom, opponent top. */
+function offPos(mine: boolean, k: number): { x: number; y: number } {
+  return { x: TRAY_CX, y: mine ? BOTTOM - 10 - SLAB_H / 2 - k * (SLAB_H + 1) : TOP + 10 + SLAB_H / 2 + k * (SLAB_H + 1) };
+}
+
+function barPos(mine: boolean, k: number, n: number): { x: number; y: number } {
+  const x = BAR_X + BAR_W / 2;
+  const spacing = n <= 5 ? 26 : Math.min(26, (BOTTOM - MID_Y - 48 - R - 4) / (n - 1));
+  return { x, y: mine ? MID_Y + 48 + k * spacing : MID_Y - 48 - k * spacing };
+}
+
+function locAt(x: number, y: number): Loc | null {
+  if (x >= TRAY_X && x <= TRAY_X + TRAY_W) return 'off';
+  if (x >= BAR_X && x < BAR_X + BAR_W) return 'bar';
+  const top = y < MID_Y;
+  if (x >= LEFT_X && x < BAR_X) {
+    const col = Math.floor((x - LEFT_X) / PW);
+    return 's' + (top ? 12 + col : 11 - col);
+  }
+  if (x >= RIGHT_X && x < FIELD_END) {
+    const col = Math.floor((x - RIGHT_X) / PW);
+    return 's' + (top ? 18 + col : 5 - col);
+  }
+  return null;
+}
+  return { VB_H, TOP, BOTTOM, MID_Y, POINT_LEN, checkerPos, offPos, barPos, locAt };
+}
+
+// Horizontal exports retain the existing geometry API for its checks.
+export const { VB_H, TOP, BOTTOM, MID_Y, POINT_LEN, checkerPos, offPos, barPos, locAt } = geom(800);
