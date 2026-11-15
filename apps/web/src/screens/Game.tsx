@@ -73,6 +73,20 @@ function stepSound(s: Step) {
 export function GameScreen({ onExit }: { onExit: () => void }) {
   const T = useT();
   const compact = useCompactLayout();
+  const boardWrap = useRef<HTMLDivElement>(null);
+  const [phoneCross, setPhoneCross] = useState(1500);
+  useEffect(() => {
+    const el = boardWrap.current;
+    if (!compact || !el) return;
+    const resize = () => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width > 0 && height > 0) setPhoneCross(Math.max(660, height / width * 1000));
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(el);
+    resize();
+    return () => observer.disconnect();
+  }, [compact]);
   const [moreOpen, setMoreOpen] = useState(false);
   const g = useGame();
   const st = useSettings();
@@ -450,9 +464,9 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
       {!compact && playerBar(opp)}
 
-      <div className={'board-wrap' + (compact ? ' compact-board' : '')}>
+      <div ref={boardWrap} className={'board-wrap' + (compact ? ' compact-board' : '')}>
         <BoardView
-          cross={compact ? 1100 : 800}
+          cross={compact ? phoneCross : 800}
           board={board}
           variant={variant}
           viewer={viewer}

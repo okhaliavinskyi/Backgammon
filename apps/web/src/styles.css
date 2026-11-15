@@ -876,12 +876,12 @@ input:focus {
 
 /* Portrait phone composition: unrotated board, both players below it. */
 .desktop-hud { display: contents; }
-.phone-game { justify-content: flex-start; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); gap: 12px; }
+.phone-game { justify-content: flex-start; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); gap: 8px; }
 .phone-game .game-top { gap: 8px; padding-top: 0; }
 .phone-game .score { grid-template-columns: 1fr; gap: 3px; }
 .phone-game .score small { font-size: 11px; }
-.board-wrap.compact-board { min-height: 0; aspect-ratio: 1000 / 1100; width: min(100%, calc((100dvh - 290px) * 1000 / 1100)); margin-top: clamp(12px, 7dvh, 56px); --die: 8cqw; }
-.mobile-hud { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 108px minmax(0, 1fr); align-items: stretch; gap: 8px; margin-top: auto; min-height: 164px; }
+.board-wrap.compact-board { min-height: 0; flex: 1 1 0; aspect-ratio: auto; width: 100%; margin-top: 0; --die: 8cqw; }
+.mobile-hud { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 108px minmax(0, 1fr); align-items: stretch; gap: 8px; margin-top: 0; min-height: 164px; flex: none; }
 .mobile-hud .pbar { flex-direction: column; justify-content: center; text-align: center; padding: 10px 4px; gap: 8px; }
 .mobile-hud .pchip { width: 28px; height: 28px; flex: none; }
 .mobile-hud .pinfo { width: 100%; }

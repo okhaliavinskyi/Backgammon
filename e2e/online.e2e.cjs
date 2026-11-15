@@ -173,7 +173,8 @@ for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of
  return {stacks,ratio:r.height/innerHeight,diameter:document.querySelector('g.ck circle').getBoundingClientRect().width,rotated:!!svg.querySelector('[transform*="matrix(0 1"]'),viewBox:svg.getAttribute('viewBox'),rings:document.querySelectorAll('[data-hint="movable"]').length,expected:props?props.movable.size-(props.selected&&props.movable.has(props.selected)?1:0):null,targets:document.querySelectorAll('[data-hint="target"],[data-hint="target-off"]').length,expectedTargets:props?.targets.size,outside:offenders};});
  console.log(width+' '+theme+' '+JSON.stringify(values));
  if(values.rotated || !values.viewBox.startsWith('0 0 1000 '))throw Error('board must never rotate '+JSON.stringify(values));
- if(width===360&&values.viewBox!=='0 0 1000 1100')throw Error('portrait board geometry '+values.viewBox);
+ if(width===360&&Math.abs(Number(values.viewBox.split(' ')[3])-values.ratio*780/344*1000)>1)throw Error('portrait geometry does not fill board '+values.viewBox);
+ if(width===360&&values.ratio<0.67)throw Error('phone board too small '+values.ratio);
  if(width!==360&&values.viewBox!=='0 0 1000 800')throw Error('desktop board geometry '+values.viewBox);
  if(values.outside.length)throw Error('checkers outside board: '+values.outside.join(','));
  if(stacksBad(values))throw Error('stack too high '+JSON.stringify(values));

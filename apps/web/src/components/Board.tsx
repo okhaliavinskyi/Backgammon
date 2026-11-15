@@ -23,7 +23,7 @@ import type { Theme } from '../lib/settings';
 
 export interface BoardProps {
   board: BoardT;
-  cross?: 800 | 1100;
+  cross?: number;
   variant: Variant;
   viewer: Color;
   theme: Theme;
