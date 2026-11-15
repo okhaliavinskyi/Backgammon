@@ -3,6 +3,8 @@ import type { Board as BoardT, Color, Variant } from '@nardy/core';
 import {
   BAR_W,
   BAR_X,
+  FIELD_END,
+  FRAME,
   LEFT_X,
   Loc,
   PW,
@@ -23,7 +25,7 @@ import type { Theme } from '../lib/settings';
 
 export interface BoardProps {
   board: BoardT;
-  cross?: number;
+  cross?: 800 | 1100;
   variant: Variant;
   viewer: Color;
   theme: Theme;
@@ -94,16 +96,17 @@ function pointPath(slot: number, g: Geometry): string {
   return `M${cx - half},${BOTTOM} L${cx + half},${BOTTOM} L${cx},${BOTTOM - POINT_LEN} Z`;
 }
 
-const StaticBoard = memo(function StaticBoard({ th, id, g }: { th: BoardTheme; id: string; g: Geometry }) {
+const StaticBoard = memo(function StaticBoard({ th, id, g, showTray }: { th: BoardTheme; id: string; g: Geometry; showTray: boolean }) {
   const { TOP, BOTTOM, MID_Y, VB_H } = g;
+  const width = showTray ? VB_W : FIELD_END + FRAME;
   const fieldRects = [
     { x: LEFT_X, w: PW * 6 },
     { x: RIGHT_X, w: PW * 6 },
   ];
   return (
     <g>
-      <rect x="0" y="0" width={VB_W} height={VB_H} rx="18" fill={`url(#${id}-frame)`} />
-      {th.fieldTexture === 'wood' && <rect x="0" y="0" width={VB_W} height={VB_H} rx="18" fill="#000" filter={`url(#${id}-grain)`} opacity="0.55" />}
+      <rect x="0" y="0" width={width} height={VB_H} rx="18" fill={`url(#${id}-frame)`} />
+      {th.fieldTexture === 'wood' && <rect x="0" y="0" width={width} height={VB_H} rx="18" fill="#000" filter={`url(#${id}-grain)`} opacity="0.55" />}
       {fieldRects.map((f, i) => (
         <g key={i}>
           <rect x={f.x} y={TOP} width={f.w} height={BOTTOM - TOP} fill={th.field} />
@@ -118,8 +121,8 @@ const StaticBoard = memo(function StaticBoard({ th, id, g }: { th: BoardTheme; i
       <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill={th.bar} />
       {th.fieldTexture === 'wood' && <rect x={BAR_X} y={TOP - 6} width={BAR_W} height={BOTTOM - TOP + 12} fill="#000" filter={`url(#${id}-grain)`} opacity="0.5" />}
       <line x1={BAR_X + BAR_W / 2} y1={TOP + 8} x2={BAR_X + BAR_W / 2} y2={BOTTOM - 8} stroke={th.inlay} strokeOpacity="0.4" strokeDasharray="2 10" />
-      <rect x={TRAY_X} y={TOP} width={TRAY_W} height={BOTTOM - TOP} rx="8" fill={th.tray} />
-      <line x1={TRAY_X + 8} y1={MID_Y} x2={TRAY_X + TRAY_W - 8} y2={MID_Y} stroke={th.inlay} strokeOpacity="0.45" />
+      {showTray && <rect x={TRAY_X} y={TOP} width={TRAY_W} height={BOTTOM - TOP} rx="8" fill={th.tray} />}
+      {showTray && <line x1={TRAY_X + 8} y1={MID_Y} x2={TRAY_X + TRAY_W - 8} y2={MID_Y} stroke={th.inlay} strokeOpacity="0.45" />}
       {Array.from({ length: 24 }, (_, s) => (
         <text key={s} x={slotX(s)} y={isTop(s) ? TOP - 7 : BOTTOM + 17} fontSize="12" textAnchor="middle" fill={th.inlay} opacity="0.75" style={{ userSelect: 'none' }}>
           {s + 1}
@@ -145,6 +148,8 @@ interface CheckerRender {
 export function BoardView(p: BoardProps) {
   const g = useMemo(() => geom(p.cross ?? 800), [p.cross]);
   const { TOP, BOTTOM, MID_Y, VB_H, checkerPos, offPos, barPos, locAt } = g;
+  const showTray = p.board.off.some((n) => n > 0) || p.targets.has('off');
+  const width = showTray ? VB_W : FIELD_END + FRAME;
   const th = THEMES[p.theme];
   const uid = 'b' + p.theme;
   const idsRef = useRef<[Map<Loc, number[]> | null, Map<Loc, number[]> | null]>([null, null]);
@@ -192,7 +197,7 @@ export function BoardView(p: BoardProps) {
   const toSvg = (e: React.PointerEvent) => {
     const svg = svgRef.current!;
     const r = svg.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * VB_W, y: ((e.clientY - r.top) / r.height) * VB_H };
+    return { x: ((e.clientX - r.left) / r.width) * width, y: ((e.clientY - r.top) / r.height) * VB_H };
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -235,7 +240,7 @@ export function BoardView(p: BoardProps) {
     <svg
       ref={svgRef}
       className="board-svg"
-      viewBox={`0 0 ${VB_W} ${VB_H}`}
+      viewBox={`0 0 ${width} ${VB_H}`}
       role="img"
       aria-label={p.label}
       onPointerDown={onPointerDown}
@@ -248,7 +253,7 @@ export function BoardView(p: BoardProps) {
     >
       <Defs th={th} id={uid} />
       <g>
-      <StaticBoard th={th} id={uid} g={g} />
+      <StaticBoard th={th} id={uid} g={g} showTray={showTray} />
 
       {/* last move markers */}
       {[...p.lastMove].map((loc) =>

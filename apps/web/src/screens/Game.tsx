@@ -21,7 +21,7 @@ import {
 } from '@nardy/core';
 import { BoardView } from '../components/Board';
 import { Cube, DiceCup, Die } from '../components/Dice';
-import { Loc, locOf, posOfSlot } from '../components/geometry';
+import { FIELD_END, FRAME, Loc, locOf, posOfSlot } from '../components/geometry';
 import { actor, useGame } from '../controllers/store';
 import { useT } from '../lib/i18n';
 import { diceMs, moveMs, useSettings } from '../lib/settings';
@@ -73,20 +73,6 @@ function stepSound(s: Step) {
 export function GameScreen({ onExit }: { onExit: () => void }) {
   const T = useT();
   const compact = useCompactLayout();
-  const boardWrap = useRef<HTMLDivElement>(null);
-  const [phoneCross, setPhoneCross] = useState(1500);
-  useEffect(() => {
-    const el = boardWrap.current;
-    if (!compact || !el) return;
-    const resize = () => {
-      const { width, height } = el.getBoundingClientRect();
-      if (width > 0 && height > 0) setPhoneCross(Math.max(660, height / width * 1000));
-    };
-    const observer = new ResizeObserver(resize);
-    observer.observe(el);
-    resize();
-    return () => observer.disconnect();
-  }, [compact]);
   const [moreOpen, setMoreOpen] = useState(false);
   const g = useGame();
   const st = useSettings();
@@ -324,6 +310,8 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   // ───────── derived view ─────────
   const board = pending ? pending.ts.board : shown;
+  const showTray = board.off.some((n) => n > 0) || targets.has('off');
+  const boardWidth = showTray ? 1000 : FIELD_END + FRAME;
   const lastMove = useMemo(() => {
     const s = new Set<Loc>();
     const ev = m.event;
@@ -464,9 +452,12 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
       {!compact && playerBar(opp)}
 
-      <div ref={boardWrap} className={'board-wrap' + (compact ? ' compact-board' : '')}>
+      <div className={'board-wrap' + (compact ? ' compact-board' : '')} style={{
+        aspectRatio: `${boardWidth} / ${compact ? 1100 : 800}`,
+        width: compact ? `min(100%, calc((100dvh - 290px) * ${boardWidth} / 1100))` : `min(100%, 1100px, calc((100dvh - 300px) * ${boardWidth} / 800))`,
+      }}>
         <BoardView
-          cross={compact ? phoneCross : 800}
+          cross={compact ? 1100 : 800}
           board={board}
           variant={variant}
           viewer={viewer}

@@ -172,10 +172,9 @@ for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of
  const stacks=[];for(const color of [0,1])for(const loc of new Set([...svg.querySelectorAll('g.ck')].map(c=>c.dataset.loc))){const cs=[...svg.querySelectorAll(`g.ck[data-color="${color}"][data-loc="${loc}"]`)];if(cs.length>=6&&loc!=='off'){const group=document.createElementNS('http://www.w3.org/2000/svg','g');cs.forEach(c=>group.append(c.cloneNode(true)));svg.append(group);stacks.push({n:cs.length,height:group.getBBox().height});group.remove();}}
  return {stacks,ratio:r.height/innerHeight,diameter:document.querySelector('g.ck circle').getBoundingClientRect().width,rotated:!!svg.querySelector('[transform*="matrix(0 1"]'),viewBox:svg.getAttribute('viewBox'),rings:document.querySelectorAll('[data-hint="movable"]').length,expected:props?props.movable.size-(props.selected&&props.movable.has(props.selected)?1:0):null,targets:document.querySelectorAll('[data-hint="target"],[data-hint="target-off"]').length,expectedTargets:props?.targets.size,outside:offenders};});
  console.log(width+' '+theme+' '+JSON.stringify(values));
- if(values.rotated || !values.viewBox.startsWith('0 0 1000 '))throw Error('board must never rotate '+JSON.stringify(values));
- if(width===360&&Math.abs(Number(values.viewBox.split(' ')[3])-values.ratio*780/344*1000)>1)throw Error('portrait geometry does not fill board '+values.viewBox);
- if(width===360&&values.ratio<0.67)throw Error('phone board too small '+values.ratio);
- if(width!==360&&values.viewBox!=='0 0 1000 800')throw Error('desktop board geometry '+values.viewBox);
+ if(values.rotated || !values.viewBox.startsWith('0 0 876 '))throw Error('empty right tray must be cropped '+JSON.stringify(values));
+ if(width===360&&values.viewBox!=='0 0 876 1100')throw Error('portrait board geometry '+values.viewBox);
+ if(width!==360&&values.viewBox!=='0 0 876 800')throw Error('desktop board geometry '+values.viewBox);
  if(values.outside.length)throw Error('checkers outside board: '+values.outside.join(','));
  if(stacksBad(values))throw Error('stack too high '+JSON.stringify(values));
  if(process.env.HINT_GATE&&(values.rings!==values.expected||values.targets!==values.expectedTargets))throw Error('hint count mismatch '+JSON.stringify(values));
@@ -285,7 +284,7 @@ async function reviewBoard(b) {
  m.board.pts[0].fill(0);m.board.pts[1].fill(0);m.board.pts[0][0]=5;m.board.pts[0][6]=5;m.board.pts[0][12]=5;m.board.pts[1][0]=15;
  const c=await b.newContext({viewport:{width:1100,height:900}});await c.addInitScript(m=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme:'wood',sound:false,speed:'instant',autoRoll:false,autoConfirm:false,hints:true,vibration:false}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},m);
  const p=await c.newPage();p.on('pageerror',e=>errors.push('review board: '+e));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});await p.goto(BASE+'/play?resume=1');await p.waitForSelector('g.ck[data-loc="s23"]');
- async function drag(from,to){const a=await p.locator(`g.ck[data-color="0"][data-loc="${from}"]`).last().boundingBox(),svg=await p.locator('.board-svg').boundingBox();const slot=Number(to.slice(1)),x=slot<=5?468+(5-slot)*64+32:slot<=11?24+(11-slot)*64+32:slot<=17?24+(slot-12)*64+32:468+(slot-18)*64+32,y=slot>=12?53:747;await p.mouse.move(a.x+a.width/2,a.y+a.height/2);await p.mouse.down();await p.mouse.move(svg.x+x*svg.width/1000,svg.y+y*svg.height/800,{steps:10});await p.mouse.up();await p.waitForTimeout(50);}
+ async function drag(from,to){const a=await p.locator(`g.ck[data-color="0"][data-loc="${from}"]`).last().boundingBox(),svg=await p.locator('.board-svg').boundingBox();const vb=(await p.locator('.board-svg').getAttribute('viewBox')).split(' ').map(Number);const slot=Number(to.slice(1)),x=slot<=5?468+(5-slot)*64+32:slot<=11?24+(11-slot)*64+32:slot<=17?24+(slot-12)*64+32:468+(slot-18)*64+32,y=slot>=12?53:747;await p.mouse.move(a.x+a.width/2,a.y+a.height/2);await p.mouse.down();await p.mouse.move(svg.x+x*svg.width/vb[2],svg.y+y*svg.height/vb[3],{steps:10});await p.mouse.up();await p.waitForTimeout(50);}
  await drag('s23','s17');await drag('s11','s10');
  const top=await p.locator('g.ck[data-color="0"][data-loc="s17"]').last().locator('text').textContent({timeout:1000}).catch(()=>null);
  if(top!=='6')throw Error('compressed stack logical top hidden: last painted checker count '+top);
@@ -305,16 +304,20 @@ async function verifyGhosts(b) {
  window.reviewRender=(kind)=>{const b=initialBoard('short');b.pts[0].fill(0);b.pts[1].fill(0);b.pts[0][0]=15;b.pts[1][0]=15;
  if(kind==='hit'){b.pts[1][0]=14;b.pts[1][22]=1;}
  if(kind==='stack'){b.pts[0][0]=5;b.pts[0][6]=10;}
- root.render(<BoardView board={b}  variant="short" viewer={0} mover={kind==='off'?1:0} theme="wood" moveMs={0} movable={new Set()} dimMovable={new Set()} selected="s23" targets={new Set([kind==='hit'?'s22':kind==='stack'?'s17':'off'])} lastMove={new Set()} hints={true} onLocClick={()=>{}} onDrop={()=>{}}/>);};window.reviewRender('hit');`;
+ if(kind==='borne'){b.pts[0][0]=14;b.off[0]=1;}
+ root.render(<BoardView board={b}  variant="short" viewer={0} mover={kind==='off'?1:0} theme="wood" moveMs={0} movable={new Set()} dimMovable={new Set()} selected="s23" targets={new Set(kind==='borne'?[]:[kind==='hit'?'s22':kind==='stack'?'s17':'off'])} lastMove={new Set()} hints={true} onLocClick={()=>{}} onDrop={()=>{}}/>);};window.reviewRender('hit');`;
  const code=require('child_process').execFileSync(path.resolve('node_modules/.bin/esbuild'),['--bundle','--format=iife','--platform=browser','--loader=tsx','--jsx=automatic','--tsconfig=apps/web/tsconfig.json','--sourcefile='+path.resolve('e2e/ghost-fixture.tsx')],{input:entry,encoding:'utf8',maxBuffer:8*1024*1024});
  const p=await b.newPage({viewport:{width:1100,height:900}});p.on('pageerror',e=>errors.push('ghost: '+e));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
  await p.setContent('<div id="root" style="width:1000px;height:800px"></div>');await p.addScriptTag({content:code});
  await p.locator('[data-hint="target"] circle').first().waitFor();
+ if((await p.locator('svg').getAttribute('viewBox'))!=='0 0 876 800')throw Error('empty tray reserved space');
  const cy=await p.locator('[data-hint="target"] circle').first().getAttribute('cy');if(cy!=='53')throw Error('hit ghost y '+cy+' expected 53');
  await p.evaluate(()=>window.reviewRender('stack'));await p.locator('[data-target="s17"]').waitFor();
  const layer=await p.locator('[data-target="s17"]').evaluate(g=>{const cs=[...document.querySelectorAll('g.ck')];return {y:g.querySelector('circle').getAttribute('cy'),above:!!(cs.at(-1).compareDocumentPosition(g)&Node.DOCUMENT_POSITION_FOLLOWING)}});
  if(layer.y!=='285'||!layer.above)throw Error('stack ghost hidden or misplaced '+JSON.stringify(layer));
  await p.evaluate(()=>window.reviewRender('off'));await p.locator('[data-hint="target-off"] rect').first().waitFor();const y=await p.locator('[data-hint="target-off"] rect').first().getAttribute('y');if(y!=='27')throw Error('opponent off tray y '+y+' expected 27');
+ await p.evaluate(()=>window.reviewRender('borne'));await p.locator('g.ck[data-loc="off"]').waitFor();if((await p.locator('svg').getAttribute('viewBox'))!=='0 0 1000 800')throw Error('borne-off tray missing');
+ console.log('tray: empty cropped to876, off target and borne-off checker use1000');
  console.log('ghosts: hit y=53; 10-stack landing y=285 above checkers; opponent tray y=27');await p.close();fs.rmSync(dir,{recursive:true});
 }
 
