@@ -1,6 +1,5 @@
 import type { Color, Variant } from './board';
 import type { MatchState } from './game';
-import type { Step } from './moves';
 
 export const MATCH_LENGTHS = [1, 3, 5, 7] as const;
 export const MOVE_TIMERS = [0, 15, 30, 60, 90] as const; // seconds, 0 = off
@@ -53,7 +52,11 @@ export function sanitizeChat(text: unknown): string {
 export interface PlayerInfo {
   name: string;
   connected: boolean;
+  disconnectedAt: number | null;
 }
+
+/** How long an opponent must be offline before the remaining player may claim the win. */
+export const CLAIM_AFTER_MS = 120_000;
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished';
 
@@ -63,6 +66,8 @@ export interface Clocks {
   /** Server timestamp (ms) when the current turn's clock started, null if no clock runs. */
   turnStartedAt: number | null;
   moveTimerMs: number;
+  /** When the next game of the match starts automatically. */
+  nextGameAt: number | null;
 }
 
 export interface RoomView {
@@ -96,7 +101,7 @@ export type ClientMsg =
   | { t: 'take' }
   | { t: 'drop' }
   | { t: 'resign' }
-  | { t: 'next' }
+  | { t: 'claim' }
   | { t: 'rematch' }
   | { t: 'chat'; text: string }
   | { t: 'emoji'; e: string }
@@ -105,7 +110,6 @@ export type ClientMsg =
 export type ServerMsg =
   | { t: 'welcome'; you: Color; token: string }
   | { t: 'state'; room: RoomView; match: MatchState | null; clocks: Clocks; serverNow: number; chat?: ChatLine[] }
-  | { t: 'moved'; by: Color; steps: Step[] }
   | { t: 'chat'; line: ChatLine }
   | { t: 'emoji'; from: Color; e: string }
   | { t: 'error'; code: string }

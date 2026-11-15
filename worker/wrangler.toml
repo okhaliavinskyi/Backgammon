@@ -1,0 +1,25 @@
+name = "nardy"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = true
+
+[assets]
+directory = "../apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "RoomDO"
+
+[[durable_objects.bindings]]
+name = "LOBBY"
+class_name = "LobbyDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDO", "LobbyDO"]
+
+[observability]
+enabled = true
