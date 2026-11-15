@@ -151,7 +151,7 @@ ok "main = $(git rev-parse --short HEAD), ветка по умолчанию"
 # ---------- 9. CI/CD на main ----------
 watch_main() {
   local sha="$1" ids=""
-  echo "  Жду запуски для $sha…"
+  echo "  Жду запуски для ${sha}…"
   for i in $(seq 1 30); do
     ids="$(gh run list -R "$REPO" --branch main --limit 20 --json databaseId,headSha,workflowName \
       --jq "map(select(.headSha==\"$sha\")) | .[] | \"\(.databaseId) \(.workflowName)\"")"
