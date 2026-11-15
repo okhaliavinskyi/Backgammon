@@ -922,8 +922,9 @@ input:focus {
 .move-time { background: rgba(67,140,85,.20); color: #b0d6b4; }
 .move-time.low { color: #ffb2a7; }
 .mobile-hud .controls { justify-content: flex-start; gap: 7px; }
-.auto-move { width: 100%; text-align: center; color: var(--muted); font-size: 11px; }
-.auto-choices { display: grid; grid-template-columns: 1fr 1fr; margin-top: 6px; border: 1px solid var(--panel-b); border-radius: 8px; overflow: hidden; }
-.auto-choices button { min-width: 0; min-height: 36px; padding: 6px 2px; border: none; background: transparent; font-size: 12px; cursor: pointer; }
-.auto-choices button + button { border-left: 1px solid var(--panel-b); }
-.auto-choices button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); }
+.quick-social { width: 100%; }
+.mobile-hud .controls .quick-chat { position: relative; min-height: 40px; background: var(--panel); }
+.quick-reactions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin-top: 4px; }
+.quick-reactions button { min-width: 0; min-height: 36px; padding: 4px 0; border: none; border-radius: 6px; background: transparent; font-size: 18px; cursor: pointer; touch-action: manipulation; }
+.quick-reactions button:hover { background: var(--panel); }
+.quick-reactions button:active { transform: scale(.94); }

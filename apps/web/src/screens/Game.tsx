@@ -468,7 +468,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {m.crawford ? ` · ${T.crawford}` : ''}
           </small>
         </div>
-        {g.mode === 'online' ? (
+        {g.mode === 'online' && !compact ? (
           <button className="icon-btn" onClick={() => setChatOpen((o) => !o)} aria-label={T.chat}>
             💬{g.chat.length > 0 && !chatOpen ? <i className="dot" /> : null}
           </button>
@@ -642,11 +642,12 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
       <div className={compact ? 'mobile-hud' : 'desktop-hud'}>
       {compact && playerBar(viewer, true)}
       <div className="controls">
-        {compact && <div className="auto-move" role="group" aria-label={T.autoConfirm}>
-          <span title={T.autoConfirm}>{T.autoMove}</span>
-          <div className="auto-choices">
-            <button type="button" aria-pressed={st.autoConfirm} onClick={() => st.set({ autoConfirm: true })}>{T.yes}</button>
-            <button type="button" aria-pressed={!st.autoConfirm} onClick={() => st.set({ autoConfirm: false })}>{T.no}</button>
+        {compact && <div className="quick-social">
+          {g.mode === 'online' && <button className="btn quick-chat" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
+            💬 {T.chat}{g.chat.length > 0 && !chatOpen && <i className="dot" />}
+          </button>}
+          <div className="quick-reactions">
+            {(['👍', '😂', '🔥', '🤝'] as const).map((emoji) => <button key={emoji} type="button" onClick={() => ctrl.emoji(emoji)} aria-label={emoji}>{emoji}</button>)}
           </div>
         </div>}
         <span className="status">{statusText}</span>
