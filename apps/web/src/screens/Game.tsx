@@ -480,6 +480,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
       <div className={'board-wrap' + (compact ? ' compact-board' : '')} style={{
         aspectRatio: `${boardWidth} / ${compact ? 1100 : 800}`,
+        ['--ar' as string]: boardWidth / 800,
         width: compact ? `min(100%, calc((100dvh - 290px) * ${boardWidth} / 1100))` : `min(100%, 1100px, calc((100dvh - 300px) * ${boardWidth} / 800))`,
       }}>
         <BoardView
@@ -687,7 +688,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
       {compact && playerBar(opp)}
       </div>
 
-      {(!compact || moreOpen) && <div className={compact ? 'phone-more' : undefined}>
+      {(!compact || moreOpen) && <div className={compact ? 'phone-more' : 'desk-more'}>
       {compact && <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}>✕</button>}
       <div className="emoji-bar">
         {EMOJIS.map((e) => (

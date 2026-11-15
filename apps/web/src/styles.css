@@ -936,3 +936,23 @@ input:focus {
 .game-settings .screen { margin: 0; }
 .game-settings .seg:has(button:nth-child(4)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .game-settings .seg button { min-width: 0; }
+
+/* Desktop/landscape: board left (as tall as the viewport allows), players, controls and chat in a side column. */
+@media (min-width: 900px) and (min-height: 521px) {
+  .game:not(.phone-game) {
+    display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: 'top top' 'board opp' 'board ctl' 'board emo' 'board chat' 'board me';
+    align-content: center; justify-items: stretch; gap: 10px 20px; width: 100%; max-width: 1500px; margin: 0 auto; padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
+  }
+  .game:not(.phone-game) .game-top { grid-area: top; max-width: none; padding-top: 0; }
+  .game:not(.phone-game) .board-wrap { grid-area: board; align-self: center; justify-self: center; width: min(100%, calc((100dvh - 112px) * var(--ar))) !important; }
+  .game:not(.phone-game) .pbar { max-width: none; }
+  .game:not(.phone-game) .pbar:not(.bottom) { grid-area: opp; }
+  .game:not(.phone-game) .pbar.bottom { grid-area: me; align-self: end; }
+  .game:not(.phone-game) .controls { grid-area: ctl; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+  .game:not(.phone-game) .controls .status { flex: 1 0 100%; margin: 0; }
+  .game:not(.phone-game) .desk-more { grid-area: emo; }
+  .game:not(.phone-game) .emoji-bar { flex-wrap: wrap; justify-content: flex-start; }
+  .game:not(.phone-game) .chat { grid-area: chat; position: static; width: auto; height: auto; min-height: 0; max-height: 100%; box-shadow: none; animation: none; }
+}
+@media (min-width: 900px) and (min-height: 521px) { .game:not(.phone-game) .controls .btn.subtle { padding-left: 0; } }
