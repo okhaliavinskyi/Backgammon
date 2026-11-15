@@ -129,8 +129,31 @@ async function recovery(b, mode) {
   await a.context().close();await p.context().close();
 }
 
+async function rejoinScenario(b) {
+  const a=await mk(b,'Алиса'), old=await mk(b,'Борис');
+  const r=await fetch(BASE+'/api/rooms',{method:'POST',body:JSON.stringify({settings:{variant:'short',isPublic:false,moveTimer:0,bank:0},password:'42'})});
+  const {id}=await r.json(),url=BASE+'/r/'+id;
+  for(const p of [a,old]){await p.goto(url);await p.locator('input[type=password]').fill('42');await p.locator('button:has-text("Войти")').click();}
+  await old.waitForSelector('.board-svg');await old.context().close();await a.waitForTimeout(400);
+  const c=await mk(b,'');await c.goto(url);
+  await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor({timeout:3000});
+  if(process.env.REJOIN_SHOTS)for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite']){
+    await c.setViewportSize({width,height});await c.evaluate(theme=>{const s=JSON.parse(localStorage.getItem('nardy.settings'));s.state.theme=theme;localStorage.setItem('nardy.settings',JSON.stringify(s))},theme);await c.reload();await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor();
+    require('fs').mkdirSync('docs/design/impl-screens',{recursive:true});await c.screenshot({path:`docs/design/impl-screens/task4-${width}-${theme}.png`});
+  }
+  await c.locator('input[type=password]').fill('wrong');await c.getByRole('button',{name:'Вернуться',exact:true}).click();await c.getByText('Неверный пароль',{exact:true}).waitFor();
+  await c.locator('input[type=password]').fill('42');await c.getByRole('button',{name:'Вернуться',exact:true}).click();await c.waitForSelector('.game-top .score');
+  await a.locator('.pbar .tag.warn').waitFor({state:'hidden',timeout:3000});
+  if(!await a.getByText('Борис',{exact:true}).count())throw Error('rejoin fallback name is not Борис');
+  const d=await mk(b,'D');await d.goto(url);await d.getByText('Комната заполнена',{exact:true}).waitFor();
+  if(await d.locator('input[type=password]').count())throw Error('full room prompted for password');
+  console.log('rejoin: wrong password rejected, right password welcomed as Борис; full online room no password input');
+  for(const p of [a,c,d])await p.context().close();
+}
+
 (async () => {
   const b = await chromium.launch({ channel: 'chrome' });
+  if (process.env.REJOIN_ONLY) {await rejoinScenario(b);await b.close();if(errors.length)throw Error(JSON.stringify(errors));return;}
   if (!process.env.RECOVERY_ONLY) await autoFlow(b);
   await recovery(b, 'drop');
   await recovery(b, 'reject');
@@ -195,6 +218,8 @@ async function recovery(b, mode) {
   await A.waitForSelector('.result');
   await B.waitForSelector('.result');
   await B.screenshot({ path: OUT + '/15-result-B.png' });
+
+  await rejoinScenario(b);
 
   // mobile shake
   const M = await mk(b, 'Мобила', { ...devices['Pixel 7'], permissions: ['accelerometer','gyroscope'] });
