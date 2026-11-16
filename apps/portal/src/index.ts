@@ -1,8 +1,36 @@
+import games from '../games.json';
+
 // Future games can use independent origins and release cycles.
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    const game = games.find(game => url.hostname === game.slug + '.onlineboard.fun' || url.hostname === game.slug + '.localhost');
+    if (game) {
+      // Dedicated app origins keep root paths, PWA caches and storage isolated.
+      const upstream = new URL(path + url.search, game.origin);
+      const headers = new Headers(request.headers);
+      if (headers.get('Origin') === url.origin) headers.set('Origin', upstream.origin);
+      const response = await fetch(new Request(upstream, { method: request.method, headers, body: request.body, redirect: 'manual' }));
+      const location = response.headers.get('Location');
+      if (location) {
+        const redirect = new URL(location, upstream);
+        if (redirect.origin === upstream.origin) {
+          const result = new Response(response.body, response);
+          result.headers.set('Location', url.origin + redirect.pathname + redirect.search + redirect.hash);
+          return result;
+        }
+      }
+      return response;
+    }
+    const mountedGame = games.find(game => path === '/' + game.slug || path === '/' + game.slug + '/');
+    if (mountedGame) {
+      if (!path.endsWith('/')) {
+        url.pathname += '/';
+        return Response.redirect(url.toString(), 308);
+      }
+      url.pathname += 'index.html';
+    }
     if (path === '/backgammon') {
       url.pathname += '/';
       return Response.redirect(url.toString(), 308);
