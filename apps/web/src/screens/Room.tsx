@@ -1,3 +1,4 @@
+import { gamePath } from '../lib/paths';
 import { useEffect, useRef, useState } from 'react';
 import { RemoteController, getToken } from '../controllers/remote';
 import { useGame } from '../controllers/store';
@@ -28,7 +29,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   const room = useGame((s) => s.room);
 
   useEffect(() => {
-    fetch(`/api/rooms/${id}`)
+    fetch(gamePath(`/api/rooms/${id}`))
       .then((r) => r.json())
       .then(setInfo)
       .catch(() => setInfo({ exists: false }));
@@ -58,7 +59,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, id, password, fatal]);
 
-  const link = `${location.origin}/r/${id}`;
+  const link = `${location.origin}${gamePath('/r/' + id)}`;
 
   if (info === null) return <div className="screen center">{T.connecting}</div>;
   if (!info.exists || noSeat || fatal === 'room_full' || fatal === 'room_expired' || fatal === 'room_gone') {

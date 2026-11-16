@@ -1,3 +1,4 @@
+import { currentGamePath, gamePath } from './lib/paths';
 import { useEffect, useMemo, useState } from 'react';
 import type { AiLevel, Variant } from '@nardy/core';
 import { LocalController, clearSavedAiGame, loadSavedAiGame } from './controllers/local';
@@ -9,14 +10,14 @@ import { CreateRoom, GameSetup, Home, Online, SettingsScreen } from './screens/M
 import { RoomScreen } from './screens/Room';
 
 function usePath(): [string, (p: string) => void] {
-  const [path, setPath] = useState(location.pathname + location.search);
+  const [path, setPath] = useState(currentGamePath());
   useEffect(() => {
-    const on = () => setPath(location.pathname + location.search);
+    const on = () => setPath(currentGamePath());
     window.addEventListener('popstate', on);
     return () => window.removeEventListener('popstate', on);
   }, []);
   const nav = (p: string) => {
-    history.pushState(null, '', p);
+    history.pushState(null, '', gamePath(p));
     setPath(p);
     window.scrollTo(0, 0);
   };

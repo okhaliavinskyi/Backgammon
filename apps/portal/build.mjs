@@ -1,0 +1,10 @@
+import { spawnSync } from 'node:child_process';
+import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const root = fileURLToPath(new URL('../../', import.meta.url));
+const dist = fileURLToPath(new URL('./dist/', import.meta.url));
+rmSync(dist, { recursive: true, force: true });
+mkdirSync(dist, { recursive: true });
+const build = spawnSync('npm', ['run', 'build', '-w', '@nardy/web', '--', '--base=/backgammon/', '--outDir', dist + 'backgammon'], { cwd: root, stdio: 'inherit' });
+if (build.status !== 0) process.exit(build.status ?? 1);
+cpSync(new URL('./public/', import.meta.url), dist, { recursive: true });
