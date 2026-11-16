@@ -45,3 +45,14 @@ npm run typecheck
 (cd worker && NARDY_URL=http://127.0.0.1:8787 npm run test:integration)   # при запущенном dev:worker
 node e2e/online.e2e.cjs                                    # браузерный e2e (нужен playwright)
 ```
+
+
+## OnlineBoard mounted release
+
+Production now uses the existing `onlineboard` catalog Worker at the root and
+`nardy` for game APIs/Durable Objects. The game client lives at `/backgammon/`.
+The main deploy workflow publishes nardy first, then builds/deploys the mounted
+client with the existing portal public assets. Do not publish a standalone build
+as the mounted client. The catalog HTML/CSS/mark are independent public files.
+Email settings and the origin/path allowlists live in worker/wrangler.toml.
+See docs/EMAIL-ACCOUNTS.md for guest-progress continuity and local auth checks.

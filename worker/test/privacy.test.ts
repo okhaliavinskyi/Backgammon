@@ -39,8 +39,9 @@ describe('profile privacy API', () => {
     const erased = await fetch(BASE + '/api/profile', { method: 'DELETE', headers: { Cookie: cookie } });
     expect(erased.status).toBe(204);
     expect(erased.headers.get('Set-Cookie')).toContain('Max-Age=0');
-    const old = await (await fetch(BASE + '/api/profile', { headers: { Cookie: cookie } })).json();
-    expect(old.profile).toBeNull();
+    const old = await fetch(BASE + '/api/profile', { headers: { Cookie: cookie } });
+    expect(old.status).toBe(401);
+    expect((await old.json()).error).toBe('no_profile');
     const untouched = await (await fetch(BASE + '/api/profile', { headers: { Cookie: otherCookie } })).json();
     expect(untouched.profile).toMatchObject({ xp: 0 });
     // Erasure preserves a usable schema, while old progress never reappears.

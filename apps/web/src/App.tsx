@@ -1,7 +1,9 @@
+import { EmailLinkScreen } from './screens/Account';
 import { RankedScreen } from './screens/Ranked';
 import { ALL_COSMETICS } from '@nardy/core';
 import { useProgress, loadProgress } from './lib/progress';
 import { ProgressScreen } from './screens/Progress';
+import { currentGamePath, gamePath } from './lib/paths';
 import { useEffect, useMemo, useState } from 'react';
 import type { AiLevel, Variant } from '@nardy/core';
 import { LocalController, clearSavedAiGame, loadSavedAiGame } from './controllers/local';
@@ -14,14 +16,14 @@ import { LegalPage } from './screens/Legal';
 import { RoomScreen } from './screens/Room';
 
 function usePath(): [string, (p: string) => void] {
-  const [path, setPath] = useState(location.pathname + location.search);
+  const [path, setPath] = useState(currentGamePath());
   useEffect(() => {
-    const on = () => setPath(location.pathname + location.search);
+    const on = () => setPath(currentGamePath());
     window.addEventListener('popstate', on);
     return () => window.removeEventListener('popstate', on);
   }, []);
   const nav = (p: string) => {
-    history.pushState(null, '', p);
+    history.pushState(null, '', gamePath(p));
     setPath(p);
     window.scrollTo(0, 0);
   };
@@ -82,6 +84,7 @@ export function App() {
   const room = pathname.match(/^\/r\/([A-Za-z0-9]{6})$/);
   if (room) return <RoomScreen key={room[1]} id={room[1].toUpperCase()} nav={nav} />;
   switch (pathname) {
+    case '/auth': return <EmailLinkScreen nav={nav} />;
     case '/ranked': return <RankedScreen nav={nav} />;
     case '/profile': return <ProgressScreen nav={nav} />;
     case '/privacy': return <LegalPage page="privacy" />;

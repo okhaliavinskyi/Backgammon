@@ -1,3 +1,4 @@
+import { gamePath } from '../lib/paths';
 import { useState } from 'react';
 import { useSettings } from '../lib/settings';
 import { clearDeviceData, downloadProfileData } from '../lib/privacy';
@@ -6,9 +7,9 @@ import { legalContact, legalReadyForPublication, legalVersion } from '../lib/leg
 export function LegalLinks() {
   const ru = useSettings((s) => s.lang) === 'ru';
   return <footer className="legal-links">
-    <a href="/privacy">{ru ? 'Приватность' : 'Privacy'}</a>
-    <a href="/terms">{ru ? 'Условия' : 'Terms'}</a>
-    <a href="/legal">{ru ? 'О проекте и связь' : 'About & contact'}</a>
+    <a href={gamePath('/privacy')}>{ru ? 'Приватность' : 'Privacy'}</a>
+    <a href={gamePath('/terms')}>{ru ? 'Условия' : 'Terms'}</a>
+    <a href={gamePath('/legal')}>{ru ? 'О проекте и связь' : 'About & contact'}</a>
   </footer>;
 }
 export function PrivacyNotice() {
@@ -16,7 +17,7 @@ export function PrivacyNotice() {
   return <p className="privacy-notice">{ru
     ? 'Используйте псевдоним. Ник виден сопернику, а у создателя публичной комнаты — в лобби. Онлайн-игра сохраняет гостевой профиль и прогресс в этом браузере. Не отправляйте личные данные в чат. '
     : 'Use a nickname. Your opponent sees it; public room hosts also appear in the lobby. Online play saves a guest profile and progress for this browser. Keep personal data out of chat. '}
-    <a href="/privacy">{ru ? 'О данных' : 'About your data'}</a> · <a href="/terms">{ru ? 'Условия игры' : 'Game terms'}</a>
+    <a href={gamePath('/privacy')}>{ru ? 'О данных' : 'About your data'}</a> · <a href={gamePath('/terms')}>{ru ? 'Условия игры' : 'Game terms'}</a>
   </p>;
 }
 
@@ -65,7 +66,7 @@ export function LegalPage({ page }: { page: 'privacy' | 'terms' | 'legal' }) {
     if (confirm(question)) void action(() => clearDeviceData(profile));
   };
   return <main className="screen legal-page">
-    <a href="/">← {ru ? 'К игре' : 'Back to game'}</a><h1>{title}</h1>
+    <a href={gamePath('/')}>← {ru ? 'К игре' : 'Back to game'}</a><h1>{title}</h1>
     {!legalReadyForPublication && <p role="status" className="error">{ru
       ? 'Предварительная редакция. Email проекта будет добавлен позже. Идентификация оператора и условия для стран предоставления ещё не завершены; документ не является окончательным юридическим оформлением.'
       : 'Preliminary version. The project email will be added later. Operator identification and country-specific terms remain incomplete; this is not final legal documentation.'}</p>}
@@ -95,7 +96,11 @@ export function LegalPage({ page }: { page: 'privacy' | 'terms' | 'legal' }) {
       {legalContact.email ? <p><a href={`mailto:${legalContact.email}`}>{legalContact.email}</a></p> : <p>{ru ? 'Отдельный email проекта пока не опубликован. Форма обращения ещё не доступна.' : 'A dedicated project email has not been published yet. A contact form is not available.'}</p>}
       <p>{ru ? 'Контакт будет использоваться для вопросов о данных, жалобах на контент, правах на материалы и сообщениях об уязвимостях. Не отправляйте пароли и токены.' : 'The contact will handle privacy requests, content complaints, rights concerns and vulnerability reports. Do not send passwords or tokens.'}</p>
     </>}
-    <p><a href="/third-party-notices.txt">{ru ? 'Лицензии библиотек' : 'Third-party licenses'}</a> · <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noreferrer">Cloudflare Privacy Policy</a></p>
+    <p><a href={gamePath('/third-party-notices.txt')}>{ru ? 'Лицензии библиотек' : 'Third-party licenses'}</a> · <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noreferrer">Cloudflare Privacy Policy</a></p>
+    {page === 'privacy' && <section>
+      <h2>{ru ? 'Добровольный вход по email' : 'Optional email sign-in'}</h2>
+      <p>{ru ? 'По желанию можно подтвердить email одноразовой ссылкой и связать его с существующим прогрессом. Пароль не создаётся. Сервер хранит подтверждённый адрес и связь с профилем; сессии устройств используют HttpOnly cookie до 90 дней и хеши секретов на сервере. Ссылки действуют 10 минут и используются один раз. Вход не объединяет балансы. Письма служат только подтверждению и входу, рассылки не подключены. Выход отзывает сессию устройства; удаление профиля удаляет привязку и отзывает все его сессии. Данные комнаты и результаты у соперника сохраняются по прежним правилам.' : 'You may verify an email with a one-time link and attach it to existing progress. No password is created. The server stores the verified address and profile link; device sessions use HttpOnly cookies for up to 90 days and server-side secret hashes. Links expire after 10 minutes and work once. Signing in does not merge balances. Email is transactional confirmation/sign-in only, with no marketing subscription. Logout revokes this device session; profile erasure removes the email link and revokes its sessions. Room data and opponents’ independent results follow the existing rules.'}</p>
+    </section>}
     <LegalLinks />
   </main>;
 }

@@ -1,9 +1,9 @@
+import { resolveIdentity, sessionProfile } from './auth-util';
 import { firstRankedDeadline } from './ranked-policy';
 import { eloChange, type Rating, type RatingEvent, type Variant } from '@nardy/core';
 import { DurableObject } from 'cloudflare:workers';
 import {
   Action,
-  profileToken,
   type ProgressEvent,
   type CosmeticKind,
   CLAIM_AFTER_MS,
@@ -73,6 +73,7 @@ interface Persisted {
 }
 
 interface Attachment {
+  session?: string;
   profile?: string;
   seat: Color | null;
 }
@@ -202,8 +203,14 @@ export class RoomDO extends DurableObject<Env> {
     if (this.ctx.getWebSockets().length >= 12) return new Response('Too many connections', { status: 429 });
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
+    let identity: { profile: string | null; session: string | null };
+    try { identity = await resolveIdentity(request.headers.get('Cookie'), this.env); }
+    catch {
+      if (this.s.ranked) return new Response('Authentication unavailable', { status: 503 });
+      identity = { profile: null, session: null }; // New casual rooms remain playable during profile-service failures.
+    }
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ seat: null, profile: profileToken(request.headers.get('Cookie')) ?? undefined } satisfies Attachment);
+    server.serializeAttachment({ seat: null, profile: identity.profile ?? undefined, session: identity.session ?? undefined } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -228,6 +235,7 @@ export class RoomDO extends DurableObject<Env> {
     }
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string') return this.send(ws, { t: 'error', code: 'bad_message' });
     const att = ws.deserializeAttachment() as Attachment;
+    if (att.profile && (att.session ? await sessionProfile(att.session,this.env)!==att.profile : !await this.profile(att.profile).guestAllowed())) return ws.close(4401,'session_expired');
     if (msg.t === 'ping') {
       const profile = att.seat === null ? undefined : this.s.seats[att.seat]?.profile;
       if (profile && this.s.match?.phase !== 'matchover') await this.profile(profile).acquire(this.s.id).catch(() => false);
@@ -286,6 +294,10 @@ export class RoomDO extends DurableObject<Env> {
         if (st && safeEqual(st.token, msg.token)) seat = c;
       }
     }
+    if (seat !== null && s.seats[seat]?.profile && proposedProfile !== s.seats[seat]!.profile) {
+      // A pre-binding room token must not bypass email-session revocation.
+      if (await this.profile(s.seats[seat]!.profile!).linkedAccount()) return ws.close(4401, 'session_expired');
+    }
     if (seat === null) {
       const now = Date.now();
       if (!s.authWindow || now - s.authWindow.start >= 60_000) s.authWindow = { start: now, attempts: 0 };
@@ -326,7 +338,7 @@ export class RoomDO extends DurableObject<Env> {
     if (st.profile && proposed === st.profile) {
       try { st.cosmetics = (await this.profile(st.profile).getProfile())?.equipped ?? st.cosmetics; } catch { /* Keep the last known appearance. */ }
     }
-    ws.serializeAttachment({ seat, profile: proposed } satisfies Attachment);
+    ws.serializeAttachment({ seat, profile: proposed, session: (ws.deserializeAttachment() as Attachment).session } satisfies Attachment);
     s.lastActivity = Date.now();
     this.send(ws, { t: 'welcome', you: seat, token: s.seats[seat]!.token });
 

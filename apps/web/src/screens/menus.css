@@ -361,3 +361,6 @@ html {
 .screen.home2 {
   min-height: 100dvh;
 }
+
+.portal-back { display: inline-flex; align-items: center; min-height: 44px; color: var(--text); opacity: .75; font-size: 13px; text-decoration: none; }
+.portal-back:hover { opacity: 1; }

@@ -1,3 +1,4 @@
+import { gamePath } from './paths';
 // Room credentials expire locally after 24 hours; server room expiry is independent.
 const TTL = 24 * 60 * 60 * 1000;
 export function pruneRoomData() {
@@ -17,10 +18,10 @@ export function pruneRoomData() {
   } catch { /* Storage may be disabled. */ }
 }
 export async function clearDeviceData(eraseProfile = false) {
-  const response = await fetch(eraseProfile ? '/api/profile' : '/api/profile/device', { method: 'DELETE', signal: AbortSignal.timeout(10_000) });
+  const response = await fetch(gamePath(eraseProfile ? '/api/profile' : '/api/profile/device'), { method: 'DELETE', signal: AbortSignal.timeout(10_000) });
   if (!response.ok && !(eraseProfile && response.status === 401)) throw new Error('delete_failed');
   if (eraseProfile && response.status === 401) {
-    const cleared = await fetch('/api/profile/device', { method: 'DELETE', signal: AbortSignal.timeout(10_000) });
+    const cleared = await fetch(gamePath('/api/profile/device'), { method: 'DELETE', signal: AbortSignal.timeout(10_000) });
     if (!cleared.ok) throw new Error('delete_failed');
   }
   for (const storage of [localStorage, sessionStorage]) {
@@ -38,7 +39,7 @@ export async function clearDeviceData(eraseProfile = false) {
 }
 
 export async function downloadProfileData() {
-  const response = await fetch('/api/profile/export', { signal: AbortSignal.timeout(10_000) });
+  const response = await fetch(gamePath('/api/profile/export'), { signal: AbortSignal.timeout(10_000) });
   if (response.status === 401) throw new Error('no_profile');
   if (!response.ok) throw new Error('export_failed');
   const blob = await response.blob();
