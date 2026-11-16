@@ -25,8 +25,8 @@
   if (path.startsWith(MOUNT + '/')) return mounted(request, url, env);
   ```
   `mounted`: не GET/HEAD → 405; SPA-regex → `ASSETS.fetch` на `/backgammon/`; иначе `ASSETS.fetch(request)`;
-  **механизм 404:** ответ `text/html` на путь, кроме `/backgammon/`, → 404 с HTML портала побайтно. Комментарий в коде называет механизм (SPA-fallback отдаёт 200 html на отсутствующий ассет).
-  Рекурсия через `this.fetch` и литерал-копия — на проверку: `export default { fetch }` как object, `this` может не быть → вынести функцию `handle`.
+  **механизм 404:** ответ `text/html` на путь, кроме `/backgammon/`, → 404 с HTML портала побайтно. **Сравнивается путь ПОСЛЕ SPA-переписывания** (`url.pathname !== '/backgammon/'`), не исходный: иначе `/backgammon/ai` станет 404 (найдено ревью R1, Codex, P1: буквальный прогон давал `/backgammon/ 200`, `/backgammon/ai 404`). Комментарий в коде называет механизм (SPA-fallback отдаёт 200 html на отсутствующий ассет).
+  **Решено (R1, typecheck TS2722/TS2554):** никакого `this.fetch`; логика выносится в функцию `handle(request, env)`, `export default { fetch: handle } satisfies ExportedHandler<Env>`, перепись API-пути — присваиванием `request`/`url`/`path` до общего кода (WebSocket и `Origin` сохраняются, R1 проверил: `/backgammon/api/rooms/<id>/ws` отвечает `welcome`).
 Приёмка батча: `npm run typecheck`, `npm test`, `npm run build && ls apps/web/dist apps/web/dist/backgammon`, чтение дифа.
 
 ### Батч 2 — тесты (два агента параллельно; Sonnet)
@@ -58,8 +58,8 @@ PR **не открывается** без слова владельца (выв�
 - **N3 e2e на 360/768/1440.** CHECK: `NARDY_URL=http://127.0.0.1:<port> node e2e/mounted.e2e.cjs; echo rc=$?`. Красное: на `HEAD` падает на `/backgammon/ai` (корневой клиент, нет `/backgammon/` в `location`).
 - **N4 CSP/SW/офлайн.** Внутри N3: `navigator.serviceWorker.ready.scope === '/backgammon/'`, перезагрузка офлайн, `manifest.scope` → `/backgammon/`, консоль без нарушений CSP; ответ `/backgammon/` содержит `content-security-policy`. Красное: подмена `_headers` строкой `script-src 'none'` — e2e обязан назвать нарушение.
 - **N5 auth.** CHECK: wrangler dev с `EMAIL_FROM`, `AUTH_ORIGINS`/`AUTH_MOUNTED_ORIGINS` = локальный origin, лог в `NARDY_MAIL_LOG`; `NARDY_URL=<origin>/backgammon npx vitest run --root worker test/auth.test.ts`. Ссылка в письме — `<origin>/backgammon/auth#…`. Красное: на `HEAD` `/backgammon/api/auth/*` — html, тест падает.
-- **N6 аддитивность.** Слепок ответов `HEAD` и ветки на путях `www`: `/`, `/ai`, `/api/health`, `/assets/missing.js`, `/manifest.webmanifest`, `/sw.js` (статус, content-type, sha256 тела, наличие CSP). EXPECT: равны, за вычетом хеша `index.html` (двойной билд не меняет `index.html` базовой сборки — сверить sha ненулевое равенство; различие названо поимённо). Красное: временная правка `www`-пути.
-- **N7 старый портал.** `npm run build:portal` (старый) собирается: exit 0; `apps/portal/dist/backgammon/index.html` ссылается на `/backgammon/assets/`. Красное: изменить `build` в `apps/web` на двойной — `build:portal` ломается (доказывает, почему `build:mounted` отдельный).
+- **N6 аддитивность.** Слепок ответов `HEAD` и ветки на путях `www`: `/`, `/ai`, `/api/health`, `/assets/missing.js`, `/manifest.webmanifest`, `/sw.js`. Сравниваются статус, content-type, sha256 тела и наличие CSP — **не** сырые заголовки (ETag ассетов различается между инстансами при равном теле, R1). EXPECT: равны без оговорок (R1: тела `/` и `/ai` побайтно равны). Красное: временная правка `www`-пути (например, ответ на `/ai` из `/backgammon/`-логики).
+- **N7 старый портал (регресс).** `npm run build:portal`: rc=0; `apps/portal/dist/backgammon/index.html` содержит `/backgammon/assets/` и не содержит `"/assets/`. Красное: убрать `--base=/backgammon/` в `apps/portal/build.mjs` во временной копии — проверка называет `"/assets/` найденным. (Утверждение «двойной `build` ломает портал» R1 опроверг, не используется.) Сборка пишет `apps/portal/dist` и `apps/web/dist` дерева — прогон после N1, не параллельно с ним.
 - **N8 живой браузер.** Прогон N3 на трёх ширинах плюс скриншоты 360/768/1440 главного экрана и `/backgammon/play?mode=ai&level=beginner` в `docs/design/impl-screens/stage-n-*.png`; консоль чиста.
 
 ## Приёмка до окна (после слова владельца о деплое `nardy`, вне этого плана)
@@ -69,4 +69,8 @@ PR **не открывается** без слова владельца (выв�
 Раунд 1: Opus свежим контекстом + Codex-флагман, оба с правилами «не по памяти, проверять исполнением, не проверено: причина — допустимый ответ». Раунд 2 — только если раунд 1 принёс P0–P2. Несогласие называется в плане отклонённым.
 
 ## Отклонённые находки / решения
-(заполняется по ревью)
+Раунд 1 (Opus fresh, Codex `-m gpt-5.6-sol` принят CLI; кто ответил — из потока не читается):
+- Codex P1 (404 по исходному пути ломает `/backgammon/ai`) — принято, исправлено в батче 1.
+- Opus P2 (N7 «красное» не краснело) — принято, N7 переписан как регресс с реальным красным; довод в спеке §1 исправлен.
+- Opus P3 `this.fetch` — принято (`handle`); P3 N6 ETag — принято; P3 SW-кэш `www` и `/backgammon//` — названы в спеке §4.5.
+- Отклонённых нет. Codex не смог запустить wrangler (sandbox EPERM на listen) — его проверки по `wrangler dev` — «не проверено»; запуск покрыт Opus.
