@@ -15,8 +15,7 @@
     "dev:worker": "npm run dev -w @nardy/worker",
     "deploy": "npm run build && npm run deploy -w @nardy/worker",
     "build:portal": "node apps/portal/build.mjs",
-    "typecheck:portal": "tsc --noEmit -p apps/portal",
-    "deploy:portal": "npm run build:portal && wrangler deploy --config apps/portal/wrangler.jsonc"
+    "typecheck:portal": "tsc --noEmit -p apps/portal"
   },
   "devDependencies": {
     "playwright": "^1.65.1",

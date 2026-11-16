@@ -2,8 +2,7 @@
 
 `onlineboard.fun/` serves the game catalog. The backgammon client is built at
 `/backgammon/`; API and WebSocket requests under `/backgammon/api/` go to the
-existing `nardy` Worker through a service binding. The mounted client and backend are released in order by the main workflow; a
-portal-only release does not redeploy the game Durable Objects.
+existing `nardy` Worker through a service binding.
 
 From the repository root:
 
@@ -11,8 +10,6 @@ From the repository root:
 npm ci
 node apps/portal/build.mjs
 npx tsc --noEmit -p apps/portal
-npx wrangler deploy --dry-run --config apps/portal/wrangler.jsonc
-npx wrangler deploy --config apps/portal/wrangler.jsonc
 ```
 
 For local browser checks, first build the standalone client as well, then run both
@@ -31,9 +28,7 @@ Set `PORTAL_URL` and `PORTAL_SHOTS` for another URL/screenshot directory.
 
 The game uses Vite's `BASE_URL` for navigation, invitations, API URLs, icons and
 its service worker. Keep new game links inside that base. The default build still
-works at the standalone Worker URL. A portal release builds the game frontend
-from the current checkout, so publish only reviewed changes compatible with the
-live `nardy` backend.
+works at the standalone Worker URL.
 
 To add another game, add its catalog card and a distinct path in the portal
 Worker. Vercel apps can use their own upstream; configure their assets and
