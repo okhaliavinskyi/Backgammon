@@ -2,8 +2,8 @@
 
 `onlineboard.fun/` serves the game catalog. The backgammon client is built at
 `/backgammon/`; API and WebSocket requests under `/backgammon/api/` go to the
-existing `nardy` Worker through a service binding. That Worker and its Durable
-Objects are not redeployed by the portal release.
+existing `nardy` Worker through a service binding. The mounted client and backend are released in order by the main workflow; a
+portal-only release does not redeploy the game Durable Objects.
 
 From the repository root:
 
@@ -57,3 +57,10 @@ passed HTTPS, catalog navigation, private room creation, two WebSocket players
 and reload using Chromium DNS pinning to an authoritative Cloudflare address;
 TLS validation remained enabled. DNS propagation was still in progress during
 verification. Deployment version: 7ff81cfe-ab6a-45c0-b2df-51b97813e096.
+
+
+Profile, ranked and email confirmation screens are mounted under the same path.
+Email links on the canonical portal origin return to `/backgammon/auth`; the
+standalone workers.dev origin retains `/auth`. Auth/profile/ranked API calls,
+privacy actions and browser navigation must use gamePath, just like invitations.
+Catalog public files are unchanged by the email release.

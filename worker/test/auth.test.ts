@@ -28,6 +28,7 @@ async function tokenFor(email: string, not?: string): Promise<string> {
               /\/auth#([a-f0-9]{64}\.[a-f0-9]{64})/,
             )?.[1];
             if (token?.startsWith(key + '.') && token !== not) {
+              expect(text).toContain(BASE + '/auth#' + token);
               found = token;
               return true;
             }
@@ -44,11 +45,11 @@ async function tokenFor(email: string, not?: string): Promise<string> {
 }
 async function socket(page: Page, id: string) {
   await page.goto(BASE + '/');
-  await page.evaluate(async (id) => {
+  await page.evaluate(async ({ id, base }) => {
     const w = window as any;
     w.game = null;
     w.ws = new WebSocket(
-      location.origin.replace('http', 'ws') + '/api/rooms/' + id + '/ws',
+      base.replace('http', 'ws') + '/api/rooms/' + id + '/ws',
     );
     w.ws.onmessage = (e: MessageEvent) => {
       const m = JSON.parse(e.data);
@@ -64,7 +65,7 @@ async function socket(page: Page, id: string) {
         resolve();
       };
     });
-  }, id);
+  }, { id, base: BASE });
 }
 describe('email account policy', () => {
   it('normalizes supported email and rejects malformed addresses and session cookies', async () => {
@@ -245,9 +246,9 @@ describe('email account policy', () => {
       const attack = await stranger.newPage();
       await attack.goto(BASE + '/');
       const reason = await attack.evaluate(
-        async ({ id, token }) => {
+        async ({ id, token, base }) => {
           const ws = new WebSocket(
-            location.origin.replace('http', 'ws') + '/api/rooms/' + id + '/ws',
+            base.replace('http', 'ws') + '/api/rooms/' + id + '/ws',
           );
           return new Promise<string>((resolve) => {
             ws.onopen = () =>
@@ -257,7 +258,7 @@ describe('email account policy', () => {
             ws.onclose = (e) => resolve(e.reason);
           });
         },
-        { id, token: oldRoomToken },
+        { id, token: oldRoomToken, base: BASE },
       );
       expect(reason).toBe('session_expired');
 

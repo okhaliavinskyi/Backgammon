@@ -18,7 +18,7 @@ const output = process.env.PORTAL_SHOTS || '/tmp/onlineboard-shots';
    await page.getByRole('link', {name: 'Играть в нарды', exact: true}).click();
    await page.locator('.home2').waitFor();
    assert.equal(new URL(page.url()).pathname, '/backgammon/');
-   await page.locator('.menu-row').nth(1).click();
+   await page.getByRole('button', {name: /ИИ|AI/}).click();
    assert.equal(new URL(page.url()).pathname, '/backgammon/ai');
    await page.reload();
    await page.locator('.page-head').waitFor();

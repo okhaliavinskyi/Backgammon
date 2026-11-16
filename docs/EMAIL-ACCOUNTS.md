@@ -1,6 +1,6 @@
 # Optional verified-email profiles
 
-Status: implemented; production domain and sender configured for `onlineboard.fun`. See rollout validation below.
+Status: release prepared for `https://onlineboard.fun/backgammon/`; sender configured as `login@mail.onlineboard.fun`. See rollout validation below.
 
 ## User flow
 
@@ -26,7 +26,7 @@ Names are initially carried from the browser that bound the profile; ordinary de
 
 The owned domain `onlineboard.fun` is active on Cloudflare Free, with nameservers `rosemary.ns.cloudflare.com` and `uriah.ns.cloudflare.com`. Native Email Sending is enabled for `mail.onlineboard.fun`; the service installed SPF, DKIM, bounce MX and a reject-policy DMARC record. Sender: `login@mail.onlineboard.fun`.
 
-Worker custom domains: `onlineboard.fun` and `www.onlineboard.fun`. The original workers.dev address stays available. `AUTH_ORIGINS` is an explicit comma-separated allowlist of these three HTTPS origins. Links return to the origin where they were requested. `AUTH_ORIGIN`, when explicitly supplied (for example in local tests), overrides the list.
+Worker custom domains: `onlineboard.fun` and `www.onlineboard.fun`. The original workers.dev address stays available. `AUTH_ORIGINS` is an explicit comma-separated allowlist of these three HTTPS origins. Links return to `/backgammon/auth` on the catalog origin and `/auth` on the standalone origin. `AUTH_MOUNTED_ORIGINS` explicitly selects the mounted origins; no client-supplied redirect path is accepted. `AUTH_ORIGIN`, when explicitly supplied (for example in local tests), overrides the list.
 
 Guest cookies and local settings are scoped to each host. There is no automatic redirect from the old host: an existing player must bind email on the original workers.dev host, then sign in on the new domain to recover that same progress. Opening the new domain alone creates an independent guest identity; no progress is deleted or implicitly merged.
 
@@ -69,3 +69,36 @@ Latest local validation: typecheck, build, 28 core tests, 26 Worker/browser test
 native types generation and dry run pass. Ranked smoke passes (968/1032 Elo,
 idempotent settlement, name-only guest/friend links, zero page errors). Origin
 allowlist checked with two accepted local origins and an unlisted host rejected.
+
+
+## Mounted email release
+
+Owner selected `/backgammon/`. Integrated the existing portal client base-path
+support with profiles, privacy actions, ranked matchmaking and email screens.
+Profile/logout navigation, account API requests, report/legal links and friend
+invitations remain under that mount. The portal SPA router now includes auth,
+profile, ranked and legal routes. Catalog public files are byte-identical to the
+previous release; its root HTML SHA-256 is
+`f4f476dab2f9a41bdfe07015f6f2b9b2ab142ffbf082a820d94efb24564967d6`.
+
+Deployment publishes the nardy backend first, then the mounted client via the
+existing onlineboard Worker. Durable Object names/bindings remain stable; the
+only new storage class is AccountDO. No forced redirects or guest reset are used.
+
+Mounted verification: the auth browser scenario passed with exact emailed path
+assertions; it preserved earned XP, balance, equipped cosmetics and Elo, recovered
+the same profile on another browser, restored that browser's other guest on
+logout, and rejected replay/revoked credentials. Mounted ranked smoke and catalog
+suite passed, including name-only friend-link entry and zero page errors.
+Typechecks, both builds, core 28/28 and both Worker dry runs passed. The complete
+standalone Worker suite passed 26/26 before the mount integration. One authorized
+plain test message was queued by Cloudflare for the owner's mailbox; inbox
+receipt is not yet independently confirmed. Local auth tests simulate all mail.
+
+Local mounted auth reproduction: build both clients; copy the worker config to a
+temporary absolute-path config without its custom-domain routes; set EMAIL_FROM
+(to a local test sender), AUTH_ORIGINS and AUTH_MOUNTED_ORIGINS to the local portal
+origin. Run both Workers with `wrangler dev --config apps/portal/wrangler.jsonc
+--config <temporary-worker-config> --infer-origin-from-routes=false`, then set
+NARDY_URL to `<portal-origin>/backgammon` and NARDY_MAIL_LOG to that process log
+when running `vitest run --root worker test/auth.test.ts`.
