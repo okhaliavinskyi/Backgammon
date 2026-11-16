@@ -3,6 +3,7 @@ import { handleAuth } from './auth';
 import { resolveProfile, sessionCookie, accountStub, SESSION_COOKIE, cookieHeader, sha256 } from './auth-util';
 import { PROFILE_COOKIE, sanitizeName, sanitizeSettings } from '@nardy/core';
 import { LobbyDO } from './lobby';
+import { mount } from './mounted';
 import { RoomDO } from './room';
 import { ROOM_ID_RE, json, randomId, readJsonObject, BodyError } from './util';
 
@@ -45,7 +46,10 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(original: Request, env: Env): Promise<Response> {
+    const mounted = await mount(original, env.ASSETS);
+    if (mounted instanceof Response) return mounted;
+    const request = mounted;
     const url = new URL(request.url);
     const path = url.pathname;
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
