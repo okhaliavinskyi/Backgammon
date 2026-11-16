@@ -71,3 +71,48 @@ model unsupported for that CLI account (also MCP init HTTP 403). NOT a green rev
 Self-audit and detailed implementation evidence:
 `docs/superpowers/plans/2026-11-16-screens-redesign-implementation.md`.
 No push, main merge, deployment, or production verification performed.
+
+# Gates — stage N (nardy serves /backgammon/*)
+
+Base = `4bf9eba` (worker copy without custom-domain routes, root client only), branch = HEAD. Local `wrangler dev` 4.162.0,
+ports 8841 (base) / 8842 (branch), vars `EMAIL_FROM`, `AUTH_ORIGINS`, `AUTH_MOUNTED_ORIGINS` = own origin. Return codes read from the script, not a pipe.
+Run: `export NODE_PATH=$HOME/.npm/_npx/9833c18b2d85bc59/node_modules`.
+
+## N1 build
+OWNS: package.json (build), apps/web/package.json (build:mounted)
+CHECK: `npm run build` rc; `test -f apps/web/dist/backgammon/index.html`; `grep -c '/backgammon/assets/' apps/web/dist/backgammon/index.html`; `grep -c '"/assets/' …/backgammon/index.html`; `grep -c '/backgammon' apps/web/dist/index.html`
+EXPECT: rc=0; file exists; 2 (>=2); 0; 0
+EVIDENCE: GREEN: rc=0, links=2, root links=0, base-build `/backgammon` refs=0. RED: on base `dist/backgammon` does not exist (base copy built without `build:mounted`; `ls` → absent).
+
+## N2 statuses (worker/test/mounted.test.ts)
+OWNS: worker/src/mounted.ts, worker/wrangler.toml (run_worker_first)
+CHECK: `NARDY_URL=http://127.0.0.1:<port> npx vitest run --root worker test/mounted.test.ts`
+EXPECT: 10/10, rc=0
+EVIDENCE: GREEN branch 10/10 rc=0. RED base: rc=1, 8 failed of 10 (health html, 308, 404, SPA assets, asset, 405, 403, WS). RED with the 404 rule disabled (`if (false && …)`): rc=1, 1 failed "returns the branded 404 for unknown paths and missing assets"; rule restored, rc=0.
+
+## N3 browser e2e 360/768/1440 (e2e/mounted.e2e.cjs)
+OWNS: e2e/mounted.e2e.cjs
+CHECK: `NARDY_URL=http://127.0.0.1:<port> node e2e/mounted.e2e.cjs; echo rc=$?`
+EXPECT: rc=0, `widths=3 errors=0` (pageerror and console error/warning listed by name; filtered by name: vibrate, favicon, AudioContext autoplay, guest 401 on /api/profile)
+EVIDENCE: GREEN branch rc=0 errors=0. RED base: killed by 200 s alarm (rc=142): `/backgammon/ai` is not served by the mounted client, `.home2` waits time out. Screenshots: `docs/design/impl-screens/stage-n-{360,768,1440}-{home,play}.png`.
+
+## N4 CSP / service worker / manifest / offline (inside N3)
+EXPECT: SW scope pathname `/backgammon/`, manifest scope `/backgammon/`, offline reload keeps `.home2`, `/backgammon/` carries content-security-policy, console clean under the CSP
+EVIDENCE: GREEN inside N3. RED: `apps/web/dist/_headers` with `img-src 'none'` → rc=1, named "Loading the image '…/backgammon/icon-192.png' violates … img-src 'none'" at sw/w1440. (`manifest-src 'none'` stayed green — Chrome does not fetch the manifest at load; `connect-src 'none'` hung to the alarm — neither used as evidence.) `_headers` restored (diff clean).
+
+## N5 auth links through the mount
+CHECK: `NARDY_URL=http://127.0.0.1:<port>/backgammon NARDY_MAIL_LOG=<wrangler log> npx vitest run --root worker test/auth.test.ts`
+EXPECT: 2/2, rc=0; link in mail `<origin>/backgammon/auth#…` (asserted by the test via BASE)
+EVIDENCE: GREEN branch 2/2 rc=0. RED base: rc=1, `expected 405 to be 200`.
+
+## N6 additivity of www paths
+CHECK: status, content-type, sha256 of body, CSP presence for `/`, `/ai`, `/api/health`, `/assets/missing.js`, `/manifest.webmanifest`, `/sw.js` on base and branch; `diff` the two snapshots (not raw ETags)
+EXPECT: diff rc=0
+EVIDENCE: GREEN diff rc=0 (identical). Intentional difference outside this list: `/backgammon/nope` base 200 → branch 404 (named in spec §4.5).
+
+## N7 old portal build (regression)
+CHECK: `npm run build:portal` rc; `apps/portal/dist/backgammon/index.html` has >=2 `/backgammon/assets/` and 0 `"/assets/`
+EVIDENCE: GREEN rc=0 links=2 root=0. RED: `--base=/backgammon/` removed from `apps/portal/build.mjs` → links=0, check rc=1; file restored with `git checkout --`, GREEN again.
+
+## N8 live browser
+EVIDENCE: N3 at 360 (mobile emulation), 768, 1440: home and AI board render under CSP, console clean; screenshots viewed (360 home, 1440 play).
