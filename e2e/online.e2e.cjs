@@ -139,7 +139,7 @@ async function rejoinScenario(b) {
   await old.waitForSelector('.board-svg');await old.context().close();await a.waitForTimeout(400);
   let c=await mk(b,'');await c.goto(url);
   await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor({timeout:3000});
-  if(process.env.REJOIN_SHOTS)for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite']){
+  if(process.env.REJOIN_SHOTS)for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite','night']){
     await c.setViewportSize({width,height});await c.evaluate(theme=>{const s=JSON.parse(localStorage.getItem('nardy.settings'));s.state.theme=theme;localStorage.setItem('nardy.settings',JSON.stringify(s))},theme);await c.reload();await c.getByText('Вернуться в игру как Борис',{exact:true}).waitFor();
     require('fs').mkdirSync(IMPL_SCREEN_DIR,{recursive:true});await c.screenshot({path:`${IMPL_SCREEN_DIR}/task4-${width}-${theme}.png`});
   }
@@ -160,7 +160,7 @@ async function rejoinScenario(b) {
 async function verifyLayouts() {
   const fs=require('fs');
 const b=await chromium.launch({channel:'chrome'});let errors=[];let count=0;
-for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite']){
+for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite','night']){
  const ctx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
  await ctx.addInitScript(({theme})=>localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'QA',lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true,shake:true,vibration:false}})),{theme});
  const p=await ctx.newPage();p.on('pageerror',e=>errors.push(String(e)));p.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
@@ -225,7 +225,7 @@ async function verifyStates() {
   let stack=make('long');stack.board.pts[0].fill(0);stack.board.pts[0][0]=10;stack.board.pts[0][4]=5;
   stack=core.applyAction(stack,{type:'roll',player:0,dice:[1,2]});
   const b=await chromium.launch({channel:'chrome'});let pageCount=0;const stateErrors=[];
-  for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite'])for(const state of ['own','opponent','roll','double','undo','stack10']){
+  for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite','night'])for(const state of ['own','opponent','roll','double','undo','stack10']){
     const m=state==='opponent'?opponent:state==='roll'||state==='double'?roll:state==='stack10'?stack:short;
     const ctx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
     await ctx.addInitScript(({theme,m,state})=>{
@@ -335,7 +335,7 @@ async function captureThemes() {
  const prefix=process.env.PREVIEW_PREFIX || 'handover';
  require('fs').mkdirSync(IMPL_SCREEN_DIR,{recursive:true});
  const b=await chromium.launch({channel:'chrome'});
- for(const theme of ['wood','minimal','malachite']){
+ for(const theme of ['wood','minimal','malachite','night']){
    const pages=[];
    for(const name of ['Алиса','Борис']) {
      const p=await mk(b,name,{viewport:{width:360,height:780},isMobile:true,hasTouch:true});

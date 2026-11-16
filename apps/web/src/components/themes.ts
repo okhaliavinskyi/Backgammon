@@ -27,6 +27,17 @@ export interface BoardTheme {
 }
 
 export const THEMES: Record<Theme, BoardTheme> = {
+  night: {
+    frame: '#161718', frameDark: '#0b0c0d',
+    field: '#202224', fieldTexture: 'none',
+    pointA: '#34383b', pointB: '#4a4640', pointStroke: 'transparent',
+    bar: '#101213', tray: '#101213', inlay: '#555047', number: '#aaa397',
+    white: { base: '#aaa397', light: '#b9b1a3', dark: '#79746b', ring: '#5d5952' },
+    black: { base: '#363c41', light: '#4b535a', dark: '#252a2e', ring: '#878d91' },
+    rim: { fill: '#aaa397', edge: '#0b0c0d' },
+    hint: { fill: '#99b3a0', edge: '#101a13' },
+    dim: 0.86, highlight: '#b6a075', target: '#99b3a0',
+  },
   wood: {
     frame: '#5a2f17',
     frameDark: '#3a1d0d',

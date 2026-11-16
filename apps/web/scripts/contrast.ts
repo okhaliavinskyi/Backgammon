@@ -19,7 +19,7 @@ for (const [name, th] of Object.entries(THEMES)) {
   }
   console.log(`${name}: checker rim minimum contrast ${minimum.toFixed(2)}:1`);
 }
-if (rimPairs !== 15) fails.push(`checker rim pairs ${rimPairs}, expected 15`);
+if (rimPairs !== Object.keys(THEMES).length * 5) fails.push(`checker rim pairs ${rimPairs}, expected ${Object.keys(THEMES).length * 5}`);
 let numberPairs = 0; let numberMin = Infinity;
 for (const [name, th] of Object.entries(THEMES)) {
   for (const [bgName, bg] of Object.entries({ frame: th.frame, frameDark: th.frameDark })) {
@@ -30,5 +30,5 @@ for (const [name, th] of Object.entries(THEMES)) {
 console.log(`point numbers checked ${numberPairs} pairs, minimum contrast ${numberMin.toFixed(2)}:1`);
 const bandPx = ((HINT_EDGE_W - HINT_FILL_W) / 2) * (344 / 1000);
 if (bandPx < 0.65) fails.push(`edge band ${bandPx.toFixed(2)} px at 360 < 0.65`);
-console.log(`checked ${checked} pairs (expected 15), edge band ${bandPx.toFixed(2)} px`);
-if (checked !== 15 || fails.length) { console.error(fails.join('\n')); process.exit(1); }
+console.log(`checked ${checked} pairs (expected ${Object.keys(THEMES).length * 5}), edge band ${bandPx.toFixed(2)} px`);
+if (checked !== Object.keys(THEMES).length * 5 || fails.length) { console.error(fails.join('\n')); process.exit(1); }

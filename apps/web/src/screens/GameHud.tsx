@@ -111,24 +111,25 @@ export function ActionBar(p: ActionBarProps) {
         )}
       </div>
       {p.onChat && (
-        <button className="round" aria-label={T.chat} onClick={p.onChat}>
-          <Icon name="chat" />
+        <button className="round chat-toggle" aria-label={T.chat} onClick={p.onChat}>
+          <Icon name="chat" /><span>{T.chat}</span>
           {p.chatDot && <i className="dot" />}
         </button>
       )}
-      <button
-        className={'btn' + (p.undoCountdownMs !== null ? ' primary undo-send' : '')}
-        disabled={!p.canUndo}
+      {p.canUndo && <button
+        className={'round undo-action' + (p.undoCountdownMs !== null ? ' primary undo-send' : '')}
+        aria-label={T.undo}
+        title={T.undo}
         onClick={p.undo}
       >
-        <Icon name="undo" size={16} /> {T.undo}
+        <Icon name="undo" size={20} />
         {p.undoCountdownMs !== null && (
           <i className="countdown" style={{ ['--ms' as string]: `${p.undoCountdownMs}ms` }} />
         )}
-      </button>
-      <button className="btn primary" disabled={!p.canDone} onClick={p.done}>
+      </button>}
+      {p.canDone && <button className="btn primary done-action" onClick={p.done}>
         <Icon name="check" size={16} /> {T.done}
-      </button>
+      </button>}
       <div className="action-extra">{p.extra}</div>
     </div>
   );

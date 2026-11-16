@@ -457,12 +457,14 @@ export function SettingsScreen({ nav }: { nav: Nav }) {
         <label className="field">
           <span>{T.theme}</span>
           <Seg<Theme>
+            className="seg-2col"
             value={st.theme}
             onChange={(theme) => st.set({ theme })}
             options={[
               { v: 'wood', label: T.themeWood },
               { v: 'minimal', label: T.themeMinimal },
               { v: 'malachite', label: T.themeMalachite },
+              { v: 'night', label: T.themeNight },
             ]}
           />
         </label>
