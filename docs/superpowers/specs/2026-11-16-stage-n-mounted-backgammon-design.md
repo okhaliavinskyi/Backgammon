@@ -142,5 +142,5 @@ workers.dev не меняются, откат — убрать один скри
 N1 сборка: `ls dist dist/backgammon` + grep ссылок; N2 интеграционные статусы
 (`worker/test/mounted.test.ts` против wrangler dev); N3 e2e `mounted.e2e.cjs` на 360/768/1440;
 N4 CSP/SW/manifest/офлайн под заголовками; N5 auth.test.ts с `NARDY_URL=…/backgammon`;
-N6 аддитивность: `www`-пути (`/`, `/api/health`, `/ai`, `/assets/missing.js`) побайтно как на `HEAD`.
+N6 аддитивность: `www`-пути побайтно как на `HEAD`; N7 регресс сборки старого портала; N8 живой браузер, скриншоты 360/768/1440.
 Каждое доказывается красным на базе `4bf9eba` (или с вынутой защитой). Подробно — план.
