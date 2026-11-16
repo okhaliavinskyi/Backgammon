@@ -48,3 +48,24 @@ Auth integration reads only the local email simulator's text files; there is no 
 The complete local suite passed 28 core tests and 25 Worker/browser tests. The auth scenario additionally preserved an earned ranked Elo result and restored the other device's guest name on UI logout. It rejects old room tokens for a linked profile, and a revoked account cookie cannot block an otherwise valid guest from playing. Typecheck, build, native email-binding simulation and Worker dry run passed. No real email was sent.
 
 Deleted guest credentials now return 401 instead of a successful null profile response; reinitializing rotates to a fresh random guest ID. The profile client already treats 401 as anonymous. Email change/unlink, recovery without mailbox access, and a device-management dashboard are outside this version. Expiry checks are enforced server-side; a real ten-minute token expiration wait and an artificial cross-object storage failure were not separately injected.
+
+## Rollout checkpoint — 2026-11-16
+
+Cloudflare confirms zone active. Email Sending enabled and authoritative DNS serves
+SPF, DKIM, bounce MX and DMARC. Custom domains for nardy attached to apex and www;
+the apex has a more specific existing `onlineboard.fun/*` route to the separately
+released `onlineboard` catalog, whose `/backgammon/api/health` returns OK.
+Imported apex/www A records were preserved under `vercel-parking-root` and
+`vercel-parking-www` to resolve Custom Domain conflicts; wildcard/CAA/mail retained.
+
+A concurrent catalog checkout (`codex/onlineboard-portal`) mounts the client at
+`/backgammon/`. Do not publish the standalone email client over that catalog.
+Owner clarification requested for canonical placement before release; mounted
+email links and client paths need integration if that placement is selected.
+Email code/config remains local, not merged or deployed. No test email sent;
+explicit owner approval requested for delivery to their mailbox.
+
+Latest local validation: typecheck, build, 28 core tests, 26 Worker/browser tests,
+native types generation and dry run pass. Ranked smoke passes (968/1032 Elo,
+idempotent settlement, name-only guest/friend links, zero page errors). Origin
+allowlist checked with two accepted local origins and an unlisted host rejected.
