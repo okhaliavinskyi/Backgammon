@@ -1,3 +1,4 @@
+import { FullscreenButton } from '../components/FullscreenButton';
 import { gamePath } from '../lib/paths';
 import { ALL_COSMETICS, ratingLabel } from '@nardy/core';
 import { useProgress } from '../lib/progress';
@@ -85,7 +86,8 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   const compact = useCompactLayout();
   // desktop/tablet-landscape: board left, phone-style HUD + chat in a side column (see styles.css)
   const wide = useCompactLayout('(min-width: 900px) and (min-height: 521px)') && !compact;
-  const hud = compact || wide;
+  const landscape = useCompactLayout('(orientation: landscape) and (max-height: 520px)');
+  const hud = compact || wide || landscape;
   const [moreOpen, setMoreOpen] = useState(false);
   const g = useGame();
   const st = useSettings();
@@ -448,7 +450,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     canUndo={hasPending && (sendAt !== null || !busy)} undoCountdownMs={sendAt !== null ? UNDO_MS : null} undo={undo}
     canDone={hasPending && turnDone && !busy && (!st.autoConfirm || paused)} done={submit}
     onReact={(e) => ctrl.emoji(e)} emojis={EMOJIS}
-    onChat={g.mode === 'online' && compact ? () => setChatOpen((o) => !o) : null} chatDot={g.chat.length > 0 && !chatOpen}
+    onChat={g.mode === 'online' && (compact || landscape) ? () => setChatOpen((o) => !o) : null} chatDot={g.chat.length > 0 && !chatOpen}
     extra={<>{canClaim && <button className="btn gold" onClick={() => ctrl.claim()}>{T.claimWin}</button>}
       {mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>×2 {T.double}{st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}</button>}</>} />;
 
@@ -456,7 +458,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   const nextIn = clocks?.nextGameAt ? Math.max(0, clocks.nextGameAt - (g.mode === 'online' ? serverNow : now)) : null;
 
   return (
-    <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '') + (wide ? ' desk2' : '') + (wide && g.mode === 'online' ? ' has-chat' : '')}>
+    <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '') + (landscape ? ' landscape-game' : '') + (wide ? ' desk2' : '') + (wide && g.mode === 'online' ? ' has-chat' : '')}>
       <header className="game-top">
         <button className="icon-btn" onClick={() => { if (g.room?.ranked && m.phase !== 'matchover') setConfirmResign(true); else onExit(); }} aria-label={T.toMenu}>
           {hud ? <Icon name="back" /> : '←'}
@@ -694,6 +696,8 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
       </>}
       {hud && moreOpen && <div className="phone-more hud-more">
         <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}><Icon name="close" /></button>
+        <FullscreenButton onToggle={() => setMoreOpen(false)} />
+        {import.meta.env.BASE_URL !== '/' && (!g.room?.ranked || m.phase === 'matchover') && <a className="btn" href="/">{st.lang === 'ru' ? 'Все игры OnlineBoard' : 'All OnlineBoard games'}</a>}
         <button className="btn" onClick={() => { setMoreOpen(false); setSettingsOpen(true); }}><Icon name="gear" /> {T.settings}</button>
         {m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && <button className="btn subtle" onClick={() => { setMoreOpen(false); setConfirmResign(true); }}>{T.resign}</button>}
       </div>}

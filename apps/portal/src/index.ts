@@ -7,9 +7,17 @@ export default {
     const path = url.pathname;
     const game = games.find(game => url.hostname === game.slug + '.onlineboard.fun' || url.hostname === game.slug + '.localhost');
     if (game) {
+      if (path === '/__onlineboard/embed-mobile.css' || path === '/__onlineboard/embed-mobile.js') {
+        url.pathname = path.replace('/__onlineboard', '');
+        return env.ASSETS.fetch(new Request(url, request));
+      }
       // Dedicated app origins keep root paths, PWA caches and storage isolated.
       const upstream = new URL(path + url.search, game.origin);
       const headers = new Headers(request.headers);
+      if (request.headers.get('Accept')?.includes('text/html')) {
+        headers.delete('If-None-Match');
+        headers.delete('If-Modified-Since');
+      }
       if (headers.get('Origin') === url.origin) headers.set('Origin', upstream.origin);
       const response = await fetch(new Request(upstream, { method: request.method, headers, body: request.body, redirect: 'manual' }));
       const location = response.headers.get('Location');
@@ -20,6 +28,14 @@ export default {
           result.headers.set('Location', url.origin + redirect.pathname + redirect.search + redirect.hash);
           return result;
         }
+      }
+      if (response.headers.get('Content-Type')?.includes('text/html')) {
+        const html = new Response(response.body, response);
+        html.headers.delete('ETag');
+        html.headers.delete('Last-Modified');
+        return new HTMLRewriter().on('head', {
+          element(head) { head.append('<link rel="stylesheet" href="/__onlineboard/embed-mobile.css"><script defer src="/__onlineboard/embed-mobile.js"></script>', { html: true }); },
+        }).transform(html);
       }
       return response;
     }

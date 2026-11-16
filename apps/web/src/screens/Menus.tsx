@@ -1,3 +1,4 @@
+import { FullscreenButton } from '../components/FullscreenButton';
 import { updateProgress, useProgress } from '../lib/progress';
 import { LegalLinks, PrivacyNotice } from './Legal';
 import { gamePath } from '../lib/paths';
@@ -127,7 +128,7 @@ export function Home({ nav }: { nav: Nav }) {
   }, []);
   return (
     <div className="screen home2">
-      {import.meta.env.BASE_URL !== '/' && <a className="portal-back" href="/">← OnlineBoard · {T.back}</a>}
+      {import.meta.env.BASE_URL !== '/' && <div className="portal-home-nav"><a className="portal-back" href="/">← OnlineBoard</a><FullscreenButton /></div>}
       <header className="home2-head">
         <span className="home2-brand">
           <Logo size={36} />

@@ -1,0 +1,13 @@
+/* Integration fixes for the independently deployed apps. Keep controls scrollable
+   on short phone screens instead of letting a fixed-height shell crush the board. */
+@media (max-height: 500px) {
+  .ss-screen { height: auto !important; min-height: 100dvh; overflow: visible !important; }
+  .ss-screen .ss-app { flex: none !important; height: 620px !important; min-height: 620px !important; }
+}
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 950px) {
+  #app[data-screen="turn"] { --fs-team: 24px; --fs-timer: 38px; --fs-topic: 20px; --fs-title: 25px; --fs-word: 26px; padding: 12px 20px 76px; gap: 12px; }
+  #app[data-screen="turn"] .head { display: flex; align-items: center; gap: 16px; }
+  #app[data-screen="turn"] .body.cols { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+  #app[data-screen="turn"] .body .key { min-height: 140px; padding: 14px; }
+  #app[data-screen="turn"] .side { min-width: 0; }
+}

@@ -364,3 +364,6 @@ html {
 
 .portal-back { display: inline-flex; align-items: center; min-height: 44px; color: var(--text); opacity: .75; font-size: 13px; text-decoration: none; }
 .portal-back:hover { opacity: 1; }
+
+.portal-home-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.portal-home-nav .fullscreen-button { font-size: 12px; min-height: 44px; }
