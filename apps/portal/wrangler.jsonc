@@ -5,7 +5,11 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-11-16",
   "workers_dev": true,
-  "routes": [{ "pattern": "onlineboard.fun/*", "zone_name": "onlineboard.fun" }],
+  "routes": [{ "pattern": "onlineboard.fun/*", "zone_name": "onlineboard.fun" },
+    { "pattern": "ctrl-v.onlineboard.fun/*", "zone_name": "onlineboard.fun" },
+    { "pattern": "guess-who.onlineboard.fun/*", "zone_name": "onlineboard.fun" },
+    { "pattern": "sand-sorter.onlineboard.fun/*", "zone_name": "onlineboard.fun" }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

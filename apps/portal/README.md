@@ -64,3 +64,42 @@ Email links on the canonical portal origin return to `/backgammon/auth`; the
 standalone workers.dev origin retains `/auth`. Auth/profile/ranked API calls,
 privacy actions and browser navigation must use gamePath, just like invitations.
 Catalog public files are unchanged by the email release.
+
+## Vercel games — 2026-11-16
+
+The catalog includes Ctrl V, Guess Who and Sand Sorter. `games.json` holds the
+fixed upstream map. The build emits `/ctrl-v/`, `/guess-who/` and `/sand-sorter/`
+launch pages with a common return link and fullscreen controls. These pages embed
+same-site, separate app origins (`<slug>.onlineboard.fun`). Each app origin proxies
+its Vercel deployment without rewriting bundles, Next.js routes, API calls or
+service workers. Browser storage and PWA caches remain separate per app.
+
+The existing proxied wildcard DNS record and wildcard certificate cover these
+origins; Wrangler owns their three explicit routes. Keep wildcard DNS proxied.
+Upstream response headers are retained. Same-origin Origin headers and upstream
+redirect locations are mapped between the public app origin and its fixed Vercel
+origin. No arbitrary upstream URL can be supplied by visitors. The sandbox keeps
+embedded navigation inside the frame while allowing the games' scripts, storage,
+fullscreen, audio, downloads and explicit external links.
+
+For local multi-host checks use:
+
+```sh
+npx wrangler dev --config apps/portal/wrangler.jsonc --config worker/wrangler.toml --port 8790 --infer-origin-from-routes=false
+node e2e/portal-games.e2e.cjs
+```
+
+The launch pages use `<slug>.localhost:8790` locally. Disabling route-origin
+inference is required for Wrangler to preserve those hostnames. For deployed
+checks set `PORTAL_URL=https://onlineboard.fun`.
+
+Verified against local Wrangler and the actual production domain: four catalog
+cards, no horizontal overflow at 360/1440, Ctrl V round start, Guess Who character
+card, Sand Sorter level 1, fullscreen enter/exit, reload and return to catalog.
+Both runs reported no page errors. The existing portal suite also passed in
+production at 360/768/1440, including mounted backgammon AI, API, PWA and offline
+reload. Device motion on physical iOS/Android hardware was not tested.
+
+Initial release version: `9e181909-8cc5-4a75-9775-cf4b89b124ea`.
+Vercel apps retain independent deployments; their future production updates are
+picked up by the proxy without rebuilding this catalog.

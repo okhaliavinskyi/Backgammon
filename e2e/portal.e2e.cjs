@@ -12,7 +12,7 @@ const output = process.env.PORTAL_SHOTS || '/tmp/onlineboard-shots';
    const page = await browser.newPage({ viewport: {width, height: 900} });
    page.on('pageerror', e => errors.push(e.message));
    await page.goto(origin);
-   assert.equal(await page.locator('.game-card').count(), 1);
+   assert.equal(await page.locator('.game-card').count(), 4);
    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
    await page.screenshot({path: `${output}/home-${width}.png`, fullPage: true});
    await page.getByRole('link', {name: 'Играть в нарды', exact: true}).click();

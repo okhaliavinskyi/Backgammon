@@ -1,0 +1,5 @@
+[
+  {"slug":"ctrl-v","name":"Ctrl V","origin":"https://ctrl-v-game.vercel.app","description":"Командная игра со словами: объясняйте, угадывайте и ловите соперников на запрещённых словах."},
+  {"slug":"guess-who","name":"Guess Who","origin":"https://guesswhogame.vercel.app","description":"Угадайте персонажа на экране: задавайте вопросы, на которые друзья отвечают «да» или «нет»."},
+  {"slug":"sand-sorter","name":"Sand Sorter","origin":"https://sandswapgame.vercel.app","description":"Пересыпайте цветной песок по бутылочкам, собирайте заказы и проходите уровни в своём темпе."}
+]
