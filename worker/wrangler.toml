@@ -23,3 +23,21 @@ new_sqlite_classes = ["RoomDO", "LobbyDO"]
 
 [observability]
 enabled = true
+
+[[ratelimits]]
+name = "CREATE_LIMITER"
+namespace_id = "736401"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "CONNECT_LIMITER"
+namespace_id = "736402"
+simple = { limit = 120, period = 60 }
+
+[[durable_objects.bindings]]
+name = "PROFILE"
+class_name = "ProfileDO"
+
+[[migrations]]
+tag = "v2-profiles"
+new_sqlite_classes = ["ProfileDO"]

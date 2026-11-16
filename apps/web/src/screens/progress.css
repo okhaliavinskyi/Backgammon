@@ -1,0 +1,19 @@
+.progress-screen { gap: 18px; padding-bottom: 40px; }
+.progress-screen .card { padding: 18px; }
+.progress-screen progress { width: 100%; accent-color: var(--accent); }
+.progress-avatar { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border: 3px solid transparent; border-radius: 50%; font-size: 24px; flex-shrink: 0; }
+.cosmetic-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-bottom: 16px; }
+.cosmetic-card { display: flex; flex-direction: column; gap: 8px; align-items: center; color: var(--text); cursor: pointer; }
+.cosmetic-card>span { font-size: 32px; }
+.cosmetic-preview .board-wrap { width: 100%; aspect-ratio: 1000/800; }
+.cosmetic-preview .btn { margin: 6px; }
+.dice-sample { font-size: 64px; padding: 12px; border-radius: 12px; }
+.dice-sample.amber { color: #281b0c; background: #eec16f; }
+.dice-sample.jade { color: #062c21; background: #b3e8cd; }
+.game-progress small { display: block; max-width: 320px; }
+:root[data-dice='amber'] .die:not(.dark) .face { background: #eec16f; }
+:root[data-dice='amber'] .die.dark .face { background: #663515; }
+:root[data-dice='jade'] .die:not(.dark) .face { background: #b3e8cd; }
+:root[data-dice='jade'] .die.dark .face { background: #124a39; }
+:root[data-theme='amber'] { --bg: #23190f; --bg2: #40301a; --accent: #e6bb65; }
+:root[data-theme='slate'] { --bg: #17232c; --bg2: #2a3e4b; --accent: #a9d1d8; }

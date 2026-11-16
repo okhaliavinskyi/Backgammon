@@ -1,3 +1,5 @@
+import { updateProgress, useProgress } from '../lib/progress';
+import { LegalLinks, PrivacyNotice } from './Legal';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   BANKS,
@@ -177,6 +179,7 @@ export function Home({ nav }: { nav: Nav }) {
         </span>
         <Icon name="chevron" />
       </button>
+      <button className="menu-row" onClick={() => nav('/profile')}>{useSettings.getState().lang === 'ru' ? 'Профиль и магазин' : 'Profile & shop'}</button>
       <details className="rules home2-rules">
         <summary>
           <Icon name="book" /> {T.howToPlay}
@@ -186,6 +189,7 @@ export function Home({ nav }: { nav: Nav }) {
         <h3>{T.short}</h3>
         <p>{T.rulesShort}</p>
       </details>
+      <LegalLinks />
     </div>
   );
 }
@@ -301,6 +305,7 @@ export function Online({ nav }: { nav: Nav }) {
     <div className="screen form online2">
       <PageHead title={T.playOnline} onBack={() => nav('/')} />
       <NameChip />
+      <PrivacyNotice />
       <button className="btn primary big" onClick={() => nav('/create')}>
         <Icon name="plus" /> {T.createRoom}
       </button>
@@ -406,6 +411,7 @@ export function CreateRoom({ nav }: { nav: Nav }) {
       <PageHead title={T.createRoom} onBack={() => nav('/online')} />
       <div className="card">
         <NameField />
+        <PrivacyNotice />
       </div>
       <div className="card">
         <div className="field">
@@ -474,9 +480,11 @@ export function SettingsScreen({ nav }: { nav: Nav }) {
   const [motion, setMotion] = useState<boolean | null>(null);
   return (
     <div className="screen form">
+      <LegalLinks />
       <PageHead title={T.settings} onBack={() => nav('/')} />
       <div className="card">
         <NameField />
+        <PrivacyNotice />
         <label className="field">
           <span>{T.language}</span>
           <Seg
@@ -493,7 +501,7 @@ export function SettingsScreen({ nav }: { nav: Nav }) {
           <Seg<Theme>
             className="seg-2col"
             value={st.theme}
-            onChange={(theme) => st.set({ theme })}
+            onChange={(theme) => { st.set({ theme }); if (useProgress.getState().profile?.equipped.theme) void updateProgress('equip', { kind: 'theme', id: null }).catch(() => {}); }}
             options={[
               { v: 'wood', label: T.themeWood },
               { v: 'minimal', label: T.themeMinimal },

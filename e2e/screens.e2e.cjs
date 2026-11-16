@@ -81,15 +81,16 @@ async function audit(p, label, expectCounts) {
       );
       const L = (r) => `${w} ${locale} ${r}`;
       await p.goto(BASE + '/');
-      await p.waitForLoadState('networkidle');
-      await audit(p, L('/'), { '.menu-row': 3, '.menu-row.primary': 1, '.home2-head .icon-btn': 1 });
+      await p.locator('#root > *').waitFor();
+      await audit(p, L('/'), { '.menu-row': 4, '.menu-row.primary': 1, '.home2-head .icon-btn': 1 });
       for (const r of ['/ai', '/local']) {
         await p.goto(BASE + r);
-        await p.waitForLoadState('networkidle');
+        await p.locator('#root > *').waitFor();
         await audit(p, L(r), { '.variant-card': 2, '.name-chip': 1, '.bottom-bar .btn.primary': 1, '.switch-row': 1 });
       }
       await p.goto(BASE + '/online');
-      await p.waitForLoadState('networkidle');
+      await p.locator('#root > *').waitFor();
+      await p.locator('.room-card2').first().waitFor();
       await audit(p, L('/online'), {
         '.room-card2': 6,
         '.lobby-filter [role=radio]': 3,
@@ -97,13 +98,15 @@ async function audit(p, label, expectCounts) {
         '.name-chip': 1,
       });
       await p.goto(BASE + '/create');
-      await p.waitForLoadState('networkidle');
+      await p.locator('#root > *').waitFor();
       await audit(p, L('/create'), { '.variant-card': 2 });
       await p.goto(BASE + '/settings');
-      await p.waitForLoadState('networkidle');
+      await p.locator('#root > *').waitFor();
       await audit(p, L('/settings'), {});
       await p.goto(BASE + '/r/' + created.id);
-      await p.waitForSelector('.wait2', { timeout: 8000 }).catch(() => {});
+      await p.locator('input[maxlength="20"]').fill('Gate');
+      await p.locator('form button').click();
+      await p.waitForSelector('.wait2 .params', { timeout: 8000 });
       await audit(p, L('/r/:id'), { '.code-card': 1, '.params > div': 4, '.wait2 .btn.primary': 1 });
       await ctx.close();
     }

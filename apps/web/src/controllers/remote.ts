@@ -1,3 +1,4 @@
+import { loadProgress, useProgress } from '../lib/progress';
 import type { ClientMsg, ServerMsg, Step } from '@nardy/core';
 import { Controller, initialGameStore, pushEmoji, useGame } from './store';
 import { pop } from '../lib/sound';
@@ -40,8 +41,9 @@ export class RemoteController implements Controller {
     private password: string | undefined,
     private onFatal: (code: string) => void,
   ) {
+    useProgress.setState({ pair: null });
     useGame.setState({ ...initialGameStore, mode: 'online', controls: [false, false], conn: 'connecting', controller: this });
-    this.connect();
+    void loadProgress(true).then(() => this.connect());
   }
 
   private connect(): void {
@@ -73,7 +75,9 @@ export class RemoteController implements Controller {
     switch (msg.t) {
       case 'welcome':
         try {
+          sessionStorage.removeItem('nardy.pw.' + this.roomId);
           localStorage.setItem(tokenKey(this.roomId), msg.token);
+          localStorage.setItem(`nardy.seen.${this.roomId}`, String(Date.now()));
         } catch {
           /* private mode */
         }
@@ -84,6 +88,8 @@ export class RemoteController implements Controller {
         });
         break;
       case 'state': {
+        if (msg.progress) useProgress.setState({ profile: msg.progress.profile, pair: msg.progress.pair });
+        else if (msg.match?.result) void loadProgress();
         try {
           if (msg.room.status === 'finished') {
             if (loadSavedOnlineRoom()?.id === this.roomId) localStorage.removeItem('nardy.online');
@@ -119,7 +125,7 @@ export class RemoteController implements Controller {
         pushEmoji(msg.from, msg.e);
         break;
       case 'error':
-        if (msg.code === 'bad_password' || msg.code === 'room_full') {
+        if (msg.code === 'bad_password' || msg.code === 'room_full' || msg.code === 'rate_limited') {
           this.onFatal(msg.code);
         } else useGame.setState({ error: msg.code });
         break;

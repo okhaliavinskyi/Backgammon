@@ -1,3 +1,7 @@
+import { ALL_COSMETICS } from '@nardy/core';
+import { useProgress } from '../lib/progress';
+import { GameProgress, PlayerAvatar } from './Progress';
+import type { Theme } from '../lib/settings';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BAR,
@@ -74,6 +78,8 @@ function stepSound(s: Step) {
 }
 
 export function GameScreen({ onExit }: { onExit: () => void }) {
+  const progressProfile = useProgress(s => s.profile);
+  const cosmeticTheme = ALL_COSMETICS.find(x => x.id === progressProfile?.equipped.theme)?.value as Theme | undefined;
   const T = useT();
   const compact = useCompactLayout();
   // desktop/tablet-landscape: board left, phone-style HUD + chat in a side column (see styles.css)
@@ -369,6 +375,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (settingsOpen) settingsDialog.current?.showModal(); }, [settingsOpen]);
+  const [hideOpponentChat, setHideOpponentChat] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -404,7 +411,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     const active = act === c;
     return (
       <div className={'pbar' + (active ? ' active' : '') + (bottom ? ' bottom' : '')}>
-        <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
+        <PlayerAvatar equipped={p?.cosmetics} /><span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={cosmeticTheme ?? st.theme} />
         <div className="pinfo">
           <div className="pname">
             {p?.name ?? '—'}
@@ -431,7 +438,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     return <PlayerStrip key={c} name={p?.name ?? '—'} offline={!!p && !p.connected} mine={mine} active={act === c} statusText={statusText}
       pips={pipCount(board, c)} pipDiff={pipCount(board, other(c)) - pipCount(board, c)} off={board.off[c]} score={m.score[c]}
       cube={m.cube.owner === c && m.settings.cube ? <Cube value={m.cube.value} /> : null}
-      pieceChip={<span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />}
+      pieceChip={<><PlayerAvatar equipped={p?.cosmetics} /><span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={cosmeticTheme ?? st.theme} /></>}
       bank={bankLeft === null ? null : fmt(bankLeft)} move={moveLeft === null ? null : fmt(moveLeft)} low={!!clk?.low} />;
   };
 
@@ -493,7 +500,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
           board={board}
           variant={variant}
           viewer={viewer}
-          theme={st.theme}
+          theme={cosmeticTheme ?? st.theme}
           moveMs={mMs}
           movable={movable}
           dimMovable={dimSet.current}
@@ -596,6 +603,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
               <p className="res-score">
                 {m.score[0]} : {m.score[1]}
               </p>
+              {g.mode === 'online' && <GameProgress event={g.room?.progressEvent ?? ''} eligible={g.room?.progressEligible} />}
               {m.phase === 'gameover' && (
                 <>
                   {nextIn !== null && (
@@ -691,12 +699,14 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         <aside className="chat">
           <div className="chat-head">
             <b>{T.chat}</b>
+            <button className="link" onClick={() => setHideOpponentChat((v) => !v)}>{st.lang === 'ru' ? (hideOpponentChat ? 'Показать соперника' : 'Скрыть соперника') : (hideOpponentChat ? 'Show opponent' : 'Hide opponent')}</button>
+            <a href="/legal" target="_blank" rel="noreferrer">{st.lang === 'ru' ? 'Жалоба' : 'Report'}</a>
             <button className="icon-btn" onClick={() => setChatOpen(false)}>
               ✕
             </button>
           </div>
           <div className="chat-list">
-            {g.chat.map((l, i) => (
+            {g.chat.filter((l) => !hideOpponentChat || l.from === viewer).map((l, i) => (
               <div key={i} className={'chat-line ' + (l.from === viewer ? 'me' : 'them')}>
                 <span>{l.text}</span>
               </div>

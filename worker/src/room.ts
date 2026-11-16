@@ -1,6 +1,9 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
   Action,
+  profileToken,
+  type ProgressEvent,
+  type CosmeticKind,
   CLAIM_AFTER_MS,
   ChatLine,
   ClientMsg,
@@ -31,6 +34,8 @@ const MAX_MSG_BYTES = 4096;
 
 interface Seat {
   name: string;
+  profile?: string;
+  cosmetics?: Partial<Record<CosmeticKind, string>>;
   token: string;
   disconnectedAt: number | null;
 }
@@ -50,26 +55,32 @@ interface Persisted {
   nextGameAt: number | null;
   rematch: [boolean, boolean];
   chat: ChatLine[];
+  progressMatch?: string;
+  progressTurns?: [number, number];
+  progressAllowed?: [boolean, boolean];
+  progressOutbox?: { profile: string; event: ProgressEvent }[];
+  progressRecorded?: string;
+  authWindow?: { start: number; attempts: number };
 }
 
 interface Attachment {
+  profile?: string;
   seat: Color | null;
 }
 
 export interface RoomInfo {
   exists: boolean;
   id?: string;
-  settings?: RoomSettings;
   hasPassword?: boolean;
   seatsTaken?: number;
-  seatsOffline?: number;
-  offlineName?: string | null;
   status?: RoomView['status'];
 }
 
 /** One Durable Object per room: authoritative game state, clocks and sockets. */
 export class RoomDO extends DurableObject<Env> {
   private s: Persisted | null = null;
+  private messages: Promise<void> = Promise.resolve();
+  private startingMatch: Promise<void> | null = null;
   private lastChat = new Map<Color, number>();
   private lastEmoji = new Map<Color, number>();
 
@@ -103,16 +114,21 @@ export class RoomDO extends DurableObject<Env> {
       chat: [],
     };
     await this.save();
+    await this.scheduleAlarm();
     if (settings.isPublic) {
       await this.lobby().upsert({ id, host: sanitizeName(hostName), settings, hasPassword: !!password, createdAt: now });
     }
     return true;
   }
 
-  private offlineSeat(): Color | null {
-    const s = this.s!;
-    for (const c of [0, 1] as Color[]) if (s.seats[c] && s.seats[c]!.disconnectedAt !== null) return c;
-    return null;
+  /** Internal RPC: no profile identifier is exposed through public room info. */
+  profileConnected(secret: string): boolean {
+    const s = this.s;
+    if (!s || s.match?.phase === 'matchover') return false;
+    return this.ctx.getWebSockets().some(ws => {
+      const seat = (ws.deserializeAttachment() as Attachment)?.seat;
+      return seat !== null && seat !== undefined && ws.readyState === WebSocket.OPEN && s.seats[seat]?.profile === secret;
+    });
   }
 
   async info(): Promise<RoomInfo> {
@@ -121,11 +137,8 @@ export class RoomDO extends DurableObject<Env> {
     return {
       exists: true,
       id: s.id,
-      settings: s.settings,
       hasPassword: !!s.passHash,
       seatsTaken: s.seats.filter(Boolean).length,
-      seatsOffline: s.seats.filter((x) => x && x.disconnectedAt !== null).length,
-      offlineName: (() => { const c = this.offlineSeat(); return c === null ? null : s.seats[c]!.name; })(),
       status: this.status(),
     };
   }
@@ -135,14 +148,27 @@ export class RoomDO extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected websocket', { status: 426 });
     if (!this.s) return new Response('Room not found', { status: 404 });
+    const origin = request.headers.get('Origin');
+    if (origin && origin !== new URL(request.url).origin) return new Response('Forbidden', { status: 403 });
+    if (this.ctx.getWebSockets().length >= 12) return new Response('Too many connections', { status: 429 });
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ seat: null } satisfies Attachment);
+    server.serializeAttachment({ seat: null, profile: profileToken(request.headers.get('Cookie')) ?? undefined } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
   override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
+    return this.enqueue(() => this.handleMessage(ws, raw));
+  }
+
+  private enqueue(work: () => Promise<void>): Promise<void> {
+    const task = this.messages.then(work);
+    this.messages = task.catch(() => {});
+    return task;
+  }
+
+  private async handleMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     if (!this.s) return ws.close(4404, 'room_gone');
     if (typeof raw !== 'string' || raw.length > MAX_MSG_BYTES) return this.send(ws, { t: 'error', code: 'bad_message' });
     let msg: ClientMsg;
@@ -151,19 +177,24 @@ export class RoomDO extends DurableObject<Env> {
     } catch {
       return this.send(ws, { t: 'error', code: 'bad_message' });
     }
+    if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string') return this.send(ws, { t: 'error', code: 'bad_message' });
     const att = ws.deserializeAttachment() as Attachment;
-    if (msg.t === 'ping') return this.send(ws, { t: 'pong', serverNow: Date.now() });
+    if (msg.t === 'ping') {
+      const profile = att.seat === null ? undefined : this.s.seats[att.seat]?.profile;
+      if (profile && this.s.match?.phase !== 'matchover') await this.profile(profile).acquire(this.s.id).catch(() => false);
+      return this.send(ws, { t: 'pong', serverNow: Date.now() });
+    }
     if (msg.t === 'hello') return this.onHello(ws, msg);
     if (att.seat === null) return this.send(ws, { t: 'error', code: 'not_joined' });
     await this.onPlayerMsg(ws, att.seat, msg);
   }
 
   override async webSocketClose(ws: WebSocket): Promise<void> {
-    await this.onSocketGone(ws);
+    await this.enqueue(() => this.onSocketGone(ws));
   }
 
   override async webSocketError(ws: WebSocket): Promise<void> {
-    await this.onSocketGone(ws);
+    await this.enqueue(() => this.onSocketGone(ws));
   }
 
   private async onSocketGone(ws: WebSocket): Promise<void> {
@@ -176,6 +207,7 @@ export class RoomDO extends DurableObject<Env> {
     const st = s.seats[seat];
     if (!stillConnected && st) {
       st.disconnectedAt = Date.now();
+      if (!s.match && st.profile) await this.profile(st.profile).release(s.id).catch(() => {});
       await this.persistAndBroadcast();
       if (seat === 0 && this.status() === 'waiting' && s.settings.isPublic) await this.lobby().remove(s.id);
     }
@@ -199,6 +231,14 @@ export class RoomDO extends DurableObject<Env> {
       }
     }
     if (seat === null) {
+      const now = Date.now();
+      if (!s.authWindow || now - s.authWindow.start >= 60_000) s.authWindow = { start: now, attempts: 0 };
+      if (++s.authWindow.attempts > 20) {
+        await this.save();
+        this.send(ws, { t: 'error', code: 'rate_limited' });
+        return ws.close(4403, 'rate_limited');
+      }
+      await this.save();
       if (s.passHash) {
         const h = await hashPassword(typeof msg.password === 'string' ? msg.password : '', s.salt);
         if (!safeEqual(h, s.passHash)) {
@@ -206,7 +246,7 @@ export class RoomDO extends DurableObject<Env> {
           return ws.close(4401, 'bad_password');
         }
       }
-      const free = s.seats[0] === null ? 0 : s.seats[1] === null ? 1 : this.offlineSeat();
+      const free = s.seats[0] === null ? 0 : s.seats[1] === null ? 1 : null;
       if (free === null) {
         this.send(ws, { t: 'error', code: 'room_full' });
         return ws.close(4403, 'room_full');
@@ -217,12 +257,25 @@ export class RoomDO extends DurableObject<Env> {
       s.seats[seat]!.name = name;
       s.seats[seat]!.disconnectedAt = null;
     }
-    ws.serializeAttachment({ seat } satisfies Attachment);
+    const proposed = (ws.deserializeAttachment() as Attachment).profile;
+    const st = s.seats[seat]!;
+    if (proposed && !st.profile && !s.match) {
+      try {
+        const p = await this.profile(proposed).getProfile();
+        if (p && s.seats[other(seat)]?.profile !== proposed) {
+          st.profile = proposed; st.cosmetics = p.equipped;
+        }
+      } catch { /* Progress outages must not block casual rooms. */ }
+    }
+    if (st.profile && proposed === st.profile) {
+      try { st.cosmetics = (await this.profile(st.profile).getProfile())?.equipped ?? st.cosmetics; } catch { /* Keep the last known appearance. */ }
+    }
+    ws.serializeAttachment({ seat, profile: proposed } satisfies Attachment);
     s.lastActivity = Date.now();
     this.send(ws, { t: 'welcome', you: seat, token: s.seats[seat]!.token });
 
     if (!s.match && s.seats[0] && s.seats[1]) {
-      this.startMatch();
+      await this.startMatch();
       if (s.settings.isPublic) await this.lobby().remove(s.id);
     } else if (this.status() === 'waiting' && s.settings.isPublic && seat === 0) {
       await this.lobby().upsert({ id: s.id, host: name, settings: s.settings, hasPassword: !!s.passHash, createdAt: s.createdAt });
@@ -230,8 +283,22 @@ export class RoomDO extends DurableObject<Env> {
     await this.persistAndBroadcast(ws);
   }
 
-  private startMatch(): void {
+  private async startMatch(): Promise<void> {
+    if (this.startingMatch) return this.startingMatch;
+    this.startingMatch = this.doStartMatch().finally(() => { this.startingMatch = null; });
+    return this.startingMatch;
+  }
+
+  private async doStartMatch(): Promise<void> {
     const s = this.s!;
+    s.progressAllowed = [false, false];
+    for (const c of [0, 1] as Color[]) {
+      const id = s.seats[c]?.profile;
+      if (id) s.progressAllowed[c] = await this.profile(id).acquire(s.id).catch(() => false);
+    }
+    s.progressMatch = crypto.randomUUID();
+    s.progressTurns = [0, 0];
+    s.progressRecorded = undefined;
     s.match = newMatch({ variant: s.settings.variant, matchLength: s.settings.matchLength, cube: s.settings.cube }, cryptoRng);
     s.bank = s.settings.bank > 0 ? [s.settings.bank * 1000, s.settings.bank * 1000] : null;
     s.turnStartedAt = null;
@@ -266,7 +333,7 @@ export class RoomDO extends DurableObject<Env> {
       case 'rematch': {
         if (!s.match || s.match.phase !== 'matchover') return this.send(ws, { t: 'error', code: 'not_over' });
         s.rematch[seat] = true;
-        if (s.rematch[0] && s.rematch[1]) this.startMatch();
+        if (s.rematch[0] && s.rematch[1]) await this.startMatch();
         return this.persistAndBroadcast();
       }
       case 'claim': {
@@ -308,7 +375,12 @@ export class RoomDO extends DurableObject<Env> {
       return;
     }
     try {
-      s.match = applyAction(s.match, action, cryptoRng);
+      const before = s.match;
+      s.match = applyAction(before, action, cryptoRng);
+      if ((action.type === 'move' || action.type === 'roll') &&
+          (before.turn !== s.match.turn || s.match.result)) {
+        s.progressTurns ??= [0, 0]; s.progressTurns[action.player]++;
+      }
     } catch (e) {
       if (e instanceof GameError) {
         if (ws) this.send(ws, { t: 'error', code: e.code });
@@ -367,17 +439,18 @@ export class RoomDO extends DurableObject<Env> {
     const d = this.deadline();
     if (d !== null) times.push(d);
     if (s.nextGameAt !== null) times.push(s.nextGameAt);
+    if (s.progressOutbox?.length) times.push(Date.now() + 10000);
     await this.ctx.storage.setAlarm(Math.min(...times));
   }
 
   override async alarm(): Promise<void> {
     if (!this.s) return;
-    await this.onAlarmWork(Date.now());
+    await this.enqueue(() => this.onAlarmWork(Date.now()));
   }
 
   private async onAlarmWork(now: number): Promise<void> {
     const s = this.s!;
-    if (now >= s.lastActivity + IDLE_MS) {
+    if (now >= s.lastActivity + IDLE_MS && !s.progressOutbox?.length) {
       const anyoneHere = this.ctx.getWebSockets().some((w) => (w.deserializeAttachment() as Attachment)?.seat !== null);
       if (!anyoneHere) return this.destroy();
       s.lastActivity = now; // players are connected and thinking — keep the room alive
@@ -386,6 +459,7 @@ export class RoomDO extends DurableObject<Env> {
     let changed = false;
     if (s.match && s.nextGameAt !== null && now >= s.nextGameAt && s.match.phase === 'gameover') {
       s.match = applyAction(s.match, { type: 'next', player: 0 }, cryptoRng);
+      s.progressTurns = [0, 0];
       this.syncClock(now);
       changed = true;
     }
@@ -401,7 +475,7 @@ export class RoomDO extends DurableObject<Env> {
       changed = true;
     }
     if (changed) await this.persistAndBroadcast();
-    else await this.scheduleAlarm();
+    else { await this.flushProgress(); await this.scheduleAlarm(); }
   }
 
   /** Move timer expired: play for the absent player (roll + reasonable move, or answer the cube). */
@@ -435,9 +509,9 @@ export class RoomDO extends DurableObject<Env> {
     const s = this.s!;
     const seat = (c: Color) => {
       const st = s.seats[c];
-      return st ? { name: st.name, connected: st.disconnectedAt === null, disconnectedAt: st.disconnectedAt } : null;
+      return st ? { cosmetics: st.cosmetics, name: st.name, connected: st.disconnectedAt === null, disconnectedAt: st.disconnectedAt } : null;
     };
-    return { id: s.id, settings: s.settings, hasPassword: !!s.passHash, players: [seat(0), seat(1)], status: this.status(), rematch: s.rematch };
+    return { progressEligible: !!s.progressAllowed?.every(Boolean), progressEvent: s.progressRecorded, id: s.id, settings: s.settings, hasPassword: !!s.passHash, players: [seat(0), seat(1)], status: this.status(), rematch: s.rematch };
   }
 
   private clocks(): Clocks {
@@ -450,14 +524,57 @@ export class RoomDO extends DurableObject<Env> {
   }
 
   private async persistAndBroadcast(withChatFor?: WebSocket): Promise<void> {
+    this.queueProgress();
     await this.save();
+    await this.flushProgress();
     await this.scheduleAlarm();
     const s = this.s!;
     const base: ServerMsg = { t: 'state', room: this.view(), match: s.match, clocks: this.clocks(), serverNow: Date.now() };
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment;
       if (att?.seat === null) continue;
-      this.send(ws, ws === withChatFor ? { ...base, chat: s.chat } : base);
+      let progress: Extract<ServerMsg, { t: 'state' }>['progress'];
+      const own = s.seats[att.seat!]?.profile, opponent = s.seats[other(att.seat!)]?.profile;
+      if (own && opponent && att.profile === own && (s.match?.result || s.match?.seq === 0 || ws === withChatFor)) {
+        try {
+          const p = await this.profile(own).getProfile();
+          if (p) progress = { profile: p, pair: await this.profile(own).pair(opponent, s.settings.variant) };
+        } catch { /* Gameplay continues while progress is unavailable. */ }
+      }
+      this.send(ws, { ...base, room: { ...base.room, progressEligible: !!s.progressAllowed?.[att.seat!] }, ...(ws === withChatFor ? { chat: s.chat } : {}), ...(progress ? { progress } : {}) });
+    }
+  }
+
+  private profile(id: string) { return this.env.PROFILE.get(this.env.PROFILE.idFromName(id)); }
+
+  private queueProgress(): void {
+    const s = this.s!, m = s.match;
+    if (!m?.result || !s.progressMatch || s.progressRecorded === `${s.progressMatch}:${m.gameNo}`) return;
+    s.progressRecorded = `${s.progressMatch}:${m.gameNo}`;
+    const qualified = m.result.kind === 'normal' || (s.progressTurns?.every(t => t >= 10) ?? false);
+    const at = Date.now();
+    for (const c of [0, 1] as Color[]) {
+      const id = s.seats[c]?.profile, opponent = s.seats[other(c)]?.profile;
+      if (!id || !opponent || id === opponent) continue;
+      (s.progressOutbox ??= []).push({ profile: id, event: {
+        id: s.progressRecorded, room: s.id, opponent, variant: s.settings.variant,
+        won: m.result.winner === c, qualified: qualified && !!s.progressAllowed?.[c],
+        matchWon: m.phase === 'matchover' ? m.matchWinner === c : null, at,
+      } });
+    }
+  }
+
+  private async flushProgress(): Promise<void> {
+    const s = this.s!;
+    for (const item of [...(s.progressOutbox ?? [])]) {
+      try {
+        await this.profile(item.profile).record(item.event);
+        s.progressOutbox = s.progressOutbox!.filter(x => x !== item);
+        await this.save();
+      } catch { break; } // Persisted outbox is retried by the room alarm.
+    }
+    if (s.match?.phase === 'matchover') {
+      for (const st of s.seats) if (st?.profile) await this.profile(st.profile).release(s.id).catch(() => {});
     }
   }
 

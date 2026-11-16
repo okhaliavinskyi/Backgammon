@@ -50,6 +50,7 @@ export function sanitizeChat(text: unknown): string {
 }
 
 export interface PlayerInfo {
+  cosmetics?: Partial<Record<import('./progress').CosmeticKind, string>>;
   name: string;
   connected: boolean;
   disconnectedAt: number | null;
@@ -71,6 +72,8 @@ export interface Clocks {
 }
 
 export interface RoomView {
+  progressEvent?: string;
+  progressEligible?: boolean;
   id: string;
   settings: RoomSettings;
   hasPassword: boolean;
@@ -109,7 +112,7 @@ export type ClientMsg =
 
 export type ServerMsg =
   | { t: 'welcome'; you: Color; token: string }
-  | { t: 'state'; room: RoomView; match: MatchState | null; clocks: Clocks; serverNow: number; chat?: ChatLine[] }
+  | { t: 'state'; room: RoomView; match: MatchState | null; clocks: Clocks; serverNow: number; chat?: ChatLine[]; progress?: { profile: import('./progress').ProgressProfile; pair: { wins: number; losses: number } } }
   | { t: 'chat'; line: ChatLine }
   | { t: 'emoji'; from: Color; e: string }
   | { t: 'error'; code: string }
