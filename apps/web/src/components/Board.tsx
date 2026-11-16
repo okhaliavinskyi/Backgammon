@@ -151,6 +151,8 @@ export function BoardView(p: BoardProps) {
   const showTray = p.board.off.some((n) => n > 0) || p.targets.has('off');
   const width = showTray ? VB_W : FIELD_END + FRAME;
   const th = THEMES[p.theme];
+  const selectLight = p.theme === 'night' ? '#b6a075' : SELECT_GREEN;
+  const selectDark = p.theme === 'night' ? '#302719' : SELECT_DARK;
   const uid = 'b' + p.theme;
   const idsRef = useRef<[Map<Loc, number[]> | null, Map<Loc, number[]> | null]>([null, null]);
   const prevLocRef = useRef(new Map<number, Loc>());
@@ -283,7 +285,7 @@ export function BoardView(p: BoardProps) {
         const x = isGhost ? ghost!.x : c.x;
         const y = isGhost ? ghost!.y : c.y;
         const movable = p.hints && c.top && c.color === p.mover && p.movable.has(c.loc);
-        const selectedInk = c.color === 0 ? SELECT_DARK : SELECT_GREEN;
+        const selectedInk = c.color === 0 ? selectDark : selectLight;
         const selected = p.hints && c.top && c.color === p.mover && p.selected === c.loc;
         return (
           <g
@@ -305,16 +307,16 @@ export function BoardView(p: BoardProps) {
                 <circle r={R - 15} fill="none" stroke={col.ring} strokeWidth="1.2" opacity="0.55" /></>}
                 {(movable || selected) && (
                   <g data-hint={selected ? 'selected' : 'movable'}>
-                    <circle r={R - 3} fill="none" stroke={selected ? SELECT_DARK : th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 6 : 0)} />
-                    <circle r={R - 3} fill="none" stroke={selected ? SELECT_GREEN : th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 6 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={selected ? selectDark : th.hint.edge} strokeWidth={HINT_EDGE_W + (selected ? 6 : 0)} />
+                    <circle r={R - 3} fill="none" stroke={selected ? selectLight : th.hint.fill} strokeWidth={HINT_FILL_W + (selected ? 6 : 0)} />
                     {selected && <>
-                      <circle data-selected-mark r={R - 11} fill={col.base} stroke={SELECT_GREEN} strokeWidth="2" />
+                      <circle data-selected-mark r={R - 11} fill={col.base} stroke={selectLight} strokeWidth="2" />
                       {c.count <= 5 && <path d="M -8 0 L -2 6 L 9 -7" fill="none" stroke={selectedInk} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
                     </>}
                   </g>
                 )}
                 {c.top && c.count > 5 && (
-                  <text y="0" dominantBaseline="central" fontSize="22" fontWeight="600" textAnchor="middle" fill={selected ? selectedInk : c.color === 0 ? '#3a2a14' : '#fff'}>
+                  <text y="0" dominantBaseline="central" fontSize="22" fontWeight="600" textAnchor="middle" fill={selected ? selectedInk : c.color === 0 ? '#3a2a14' : th.number}>
                     {c.count}
                   </text>
                 )}

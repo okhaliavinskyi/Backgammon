@@ -1322,3 +1322,27 @@ input:not([type='checkbox']) {
   .game:not(.phone-game) .chat-head .icon-btn { display: none; }
   .game:not(.phone-game) .controls .quick-social { display: none; }
 }
+
+/* Night palette keeps large surfaces dark without dimming text or move cues. */
+:root[data-theme='night'] {
+  --bg: #090b0d;
+  --bg2: #141719;
+  --panel: #191d20;
+  --panel-b: #454a4e;
+  --text: #bdb6aa;
+  --muted: #96938c;
+  --accent: #a99a7e;
+  --accent-2: #a4776d;
+  --ok: #99b3a0;
+  --danger: #c38d80;
+}
+:root[data-theme='night'] .pchip.w,
+:root[data-theme='night'] .die:not(.dark) .face {
+  background: radial-gradient(circle at 35% 30%, #b9b1a3, #aaa397 60%, #79746b);
+}
+:root[data-theme='night'] .pchip.b,
+:root[data-theme='night'] .die.dark .face {
+  background: radial-gradient(circle at 35% 30%, #4b535a, #363c41 60%, #252a2e);
+}
+:root[data-theme='night'] .die.dark .pip { fill: #bdb6aa; }
+:root[data-theme='night'] .pip.one { fill: #633c32; }

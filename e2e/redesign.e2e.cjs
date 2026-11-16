@@ -56,7 +56,7 @@ async function snap(p, screen, w, theme) {
   const match = core.newMatch({ variant: 'short', matchLength: 3, cube: true }, () => [6, 1][n++ % 2]);
   const b = await chromium.launch({ channel: 'chrome' });
   try {
-    for (const theme of ['wood', 'minimal', 'malachite'])
+    for (const theme of ['wood', 'minimal', 'malachite', 'night'])
       for (const [width, height] of [
         [360, 780],
         [768, 1024],

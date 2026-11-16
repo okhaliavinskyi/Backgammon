@@ -38,9 +38,7 @@ const num = (s) => parseInt((s.match(/\d+/) || ['-1'])[0], 10);
           pm: [...document.querySelectorAll('.pmeta')].map((e) => e.textContent),
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           small,
-          undoDisabled: [...document.querySelectorAll('.action-bar button')].find((e) =>
-            /Отменить|Undo/.test(e.textContent),
-          )?.disabled,
+          inactiveActions: document.querySelectorAll('.action-bar .undo-action, .action-bar .done-action').length,
         };
       });
       if (w < 900) {
@@ -69,8 +67,8 @@ const num = (s) => parseInt((s.match(/\d+/) || ['-1'])[0], 10);
       if (r.status !== 1) BAD.push(`${L}: found ${r.status} ".status", expected 1`);
       if (r.overflow > 0) BAD.push(`${L}: horizontal overflow ${r.overflow}px`);
       for (const s of r.small) BAD.push(`${L}: tap target ${s}`);
-      if (r.undoDisabled !== true)
-        BAD.push(`${L}: Undo should be disabled before the first move, got ${r.undoDisabled}`);
+      if (r.inactiveActions !== 0)
+        BAD.push(`${L}: unavailable move actions should be hidden, got ${r.inactiveActions}`);
       if (r.pm.length !== 2 || r.pm.some((t) => num(t) < 0))
         BAD.push(`${L}: missing numeric pips: ${JSON.stringify(r.pm)}`);
       const [pa, pc] = r.pm.map(num),

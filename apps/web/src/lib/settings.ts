@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Lang } from './i18n';
 
-export type Theme = 'wood' | 'minimal' | 'malachite';
+export type Theme = 'wood' | 'minimal' | 'malachite' | 'night';
 export type Speed = 'slow' | 'normal' | 'fast' | 'instant';
 
 export interface Settings {
