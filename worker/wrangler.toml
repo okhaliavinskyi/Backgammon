@@ -49,3 +49,14 @@ class_name = "MatchmakingDO"
 [[migrations]]
 tag = "v3-ranked"
 new_sqlite_classes = ["MatchmakingDO"]
+
+[[durable_objects.bindings]]
+name = "ACCOUNT"
+class_name = "AccountDO"
+
+[[migrations]]
+tag = "v4-email-accounts"
+new_sqlite_classes = ["AccountDO"]
+
+[[send_email]]
+name = "EMAIL"

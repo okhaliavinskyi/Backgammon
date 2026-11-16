@@ -96,6 +96,10 @@ export function LegalPage({ page }: { page: 'privacy' | 'terms' | 'legal' }) {
       <p>{ru ? 'Контакт будет использоваться для вопросов о данных, жалобах на контент, правах на материалы и сообщениях об уязвимостях. Не отправляйте пароли и токены.' : 'The contact will handle privacy requests, content complaints, rights concerns and vulnerability reports. Do not send passwords or tokens.'}</p>
     </>}
     <p><a href="/third-party-notices.txt">{ru ? 'Лицензии библиотек' : 'Third-party licenses'}</a> · <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noreferrer">Cloudflare Privacy Policy</a></p>
+    {page === 'privacy' && <section>
+      <h2>{ru ? 'Добровольный вход по email' : 'Optional email sign-in'}</h2>
+      <p>{ru ? 'По желанию можно подтвердить email одноразовой ссылкой и связать его с существующим прогрессом. Пароль не создаётся. Сервер хранит подтверждённый адрес и связь с профилем; сессии устройств используют HttpOnly cookie до 90 дней и хеши секретов на сервере. Ссылки действуют 10 минут и используются один раз. Вход не объединяет балансы. Письма служат только подтверждению и входу, рассылки не подключены. Выход отзывает сессию устройства; удаление профиля удаляет привязку и отзывает все его сессии. Данные комнаты и результаты у соперника сохраняются по прежним правилам.' : 'You may verify an email with a one-time link and attach it to existing progress. No password is created. The server stores the verified address and profile link; device sessions use HttpOnly cookies for up to 90 days and server-side secret hashes. Links expire after 10 minutes and work once. Signing in does not merge balances. Email is transactional confirmation/sign-in only, with no marketing subscription. Logout revokes this device session; profile erasure removes the email link and revokes its sessions. Room data and opponents’ independent results follow the existing rules.'}</p>
+    </section>}
     <LegalLinks />
   </main>;
 }

@@ -44,16 +44,26 @@ export class ProfileDO extends DurableObject<Env> {
     if (!lastUsed || Date.now() >= lastUsed + PROFILE_TTL_MS) await this.erase();
     else await this.ctx.storage.setAlarm(lastUsed + PROFILE_TTL_MS);
   }
-  exportData(): { version: number; profile: ProgressProfile | null; lastUsed: number | null; records: { category: string; reference: string; value: unknown }[] } {
+  exportData(): { email: string | null; version: number; profile: ProgressProfile | null; lastUsed: number | null; records: { category: string; reference: string; value: unknown }[] } {
     const rows = this.ctx.storage.sql.exec<{ id: string; value: string }>('SELECT id, value FROM data ORDER BY id').toArray();
     const records = exportProfileRecords(rows);
-    return { version: 1, profile: this.getProfile(), lastUsed: this.read<number>('lastUsed') ?? null, records };
+    return { email: this.linkedAccount()?.email ?? null, version: 1, profile: this.getProfile(), lastUsed: this.read<number>('lastUsed') ?? null, records };
   }
   getProfile(): ProgressProfile | null {
     const p = this.read<ProgressProfile>('profile');
     if (!p) return null;
     p.ratings ??= initialRatings(); return p;
   }
+  guestAllowed(): boolean { return !!this.getProfile() && !this.read('account'); }
+  linkedAccount(): { id: string; email: string } | null { return this.read<{ id: string; email: string }>('account') ?? null; }
+  linkAccount(id: string, email: string): boolean {
+    return this.ctx.storage.transactionSync(() => {
+      if (!this.getProfile()) return false;
+      const linked=this.linkedAccount(); if(linked && linked.id!==id)return false;
+      this.write('account',{id,email});return true;
+    });
+  }
+
   rankedTicket(): RankedTicket | null {
     const t = this.read<RankedTicket>('ranked');
     if (!t || (!t.room && t.expires <= Date.now())) return null;

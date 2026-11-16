@@ -63,6 +63,8 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
 
   if (info?.cancelled || room?.ranked?.cancelled || fatal === 'match_cancelled' || fatal === 'not_invited') return <div className="screen form"><p>{useSettings.getState().lang === 'ru' ? 'Рейтинговый матч отменён или предназначен другим участникам. Elo не изменён, если матч не начался.' : 'Ranked match cancelled or reserved for other players. Unstarted matches do not affect Elo.'}</p><button className="btn primary" onClick={() => nav('/ranked')}>{useSettings.getState().lang === 'ru' ? 'К подбору' : 'Matchmaking'}</button></div>;
 
+  if(fatal==='session_expired')return <div className="screen form"><p>{useSettings.getState().lang==='ru'?'Сессия изменилась или истекла. Войдите в сохранённый профиль для восстановления доступа.':'Your session changed or expired. Sign in to your saved profile to restore access.'}</p><button className="btn primary" onClick={()=>nav('/profile')}>{useSettings.getState().lang==='ru'?'Профиль / вход':'Profile / sign in'}</button><button className="btn" onClick={()=>location.reload()}>{useSettings.getState().lang==='ru'?'Обновить':'Reload'}</button></div>;
+
   if (fatal === 'rate_limited') return <div className="screen center"><p>{useSettings.getState().lang === 'ru' ? 'Слишком много попыток. Подождите минуту и попробуйте снова.' : 'Too many attempts. Wait a minute and try again.'}</p><button className="btn" onClick={() => nav('/online')}>{T.back}</button></div>;
 
   if (info === null) return <div className="screen center">{T.connecting}</div>;

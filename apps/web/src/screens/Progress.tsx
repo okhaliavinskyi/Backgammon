@@ -1,3 +1,5 @@
+import { EmailAccountPanel } from './Account';
+import { useAccount } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
 import { ALL_COSMETICS, COSMETICS, ratingLabel, rankFor, levelForXp, xpForLevel, initialBoard, type Cosmetic } from '@nardy/core';
 import { useSettings, type Theme } from '../lib/settings';
@@ -17,6 +19,7 @@ const badgeNames: Record<string, [string, string]> = {
 };
 export function ProgressScreen({ nav }: { nav: Nav }) {
   const ru = useSettings(s => s.lang) === 'ru';
+  const account = useAccount(s=>s.account);
   const name = useSettings(s => s.name);
   const hidden = useSettings(s => s.hideProgress);
   const { profile: p, error } = useProgress();
@@ -35,7 +38,7 @@ export function ProgressScreen({ nav }: { nav: Nav }) {
   const equipped = { ...p?.equipped, ...(preview ? { [preview.kind]: preview.id } : {}) };
   return <main className="screen form progress-screen">
     <PageHead title={ru ? 'Профиль и магазин' : 'Profile & shop'} onBack={() => nav('/')} />
-    <p className="muted">{ru ? 'Без регистрации. Прогресс связан с этим браузером; очистка данных может привести к потере доступа.' : 'No account needed. Progress belongs to this browser; clearing its data may lose access.'}</p>
+    <p className="muted">{account ? (ru?'Прогресс сохранён в профиле с подтверждённым email.':'Progress is saved to your verified-email profile.') : ru ? 'Без регистрации. Прогресс связан с этим браузером; очистка данных может привести к потере доступа.' : 'No account needed. Progress belongs to this browser; clearing its data may lose access.'}</p>
     {error && <p role="alert">{ru ? 'Прогресс временно недоступен. Обычная игра работает.' : 'Progress is temporarily unavailable. You can still play.'} <button className="btn" onClick={() => void loadProgress(true)}>{ru ? 'Повторить' : 'Retry'}</button></p>}
     {!p && !error && <p role="status">{ru ? 'Загрузка…' : 'Loading…'}</p>}
     {p && <>
@@ -45,6 +48,7 @@ export function ProgressScreen({ nav }: { nav: Nav }) {
         <p>{p.xp - xpForLevel(level)} / {xpForLevel(level + 1) - xpForLevel(level)} XP</p>
         <label><input type="checkbox" checked={hidden} onChange={e => useSettings.getState().set({ hideProgress: e.target.checked })} /> {ru ? 'Скрывать прогресс в игре' : 'Hide progress during games'}</label>
       </section>
+      <EmailAccountPanel />
       <section className="card"><h3>{ru ? 'Рейтинг' : 'Ratings'}</h3>{(['long','short'] as const).map(v => <p key={v}><b>{v === 'long' ? (ru ? 'Длинные' : 'Long') : (ru ? 'Короткие' : 'Short')}</b>: {ratingLabel(p.ratings[v], ru)} · {p.ratings[v].wins} / {p.ratings[v].losses}{p.ratings[v].best !== null && <small> · {ru ? 'Лучший' : 'Best'}: {rankFor(p.ratings[v].best!)[ru ? 'ru' : 'en']}</small>}</p>)}<button className="btn" onClick={() => nav('/ranked')}>{ru ? 'Рейтинговая игра' : 'Ranked game'}</button></section>
       <section className="card"><h3>{ru ? 'Статистика онлайн-матчей' : 'Online match statistics'}</h3>
         {(['long', 'short'] as const).map(v => { const s = p.stats[v]; return <p key={v}><b>{v === 'long' ? (ru ? 'Длинные' : 'Long') : (ru ? 'Короткие' : 'Short')}</b>: {s.matches ? `${s.wins} ${ru ? 'побед' : 'wins'} · ${s.losses} ${ru ? 'поражений' : 'losses'} · ${Math.round(s.wins / s.matches * 100)}%` : (ru ? 'Пока нет матчей' : 'No matches yet')} · {s.games} {ru ? 'партий' : 'games'}</p>; })}

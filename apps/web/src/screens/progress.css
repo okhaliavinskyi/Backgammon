@@ -17,3 +17,7 @@
 :root[data-dice='jade'] .die.dark .face { background: #124a39; }
 :root[data-theme='amber'] { --bg: #23190f; --bg2: #40301a; --accent: #e6bb65; }
 :root[data-theme='slate'] { --bg: #17232c; --bg2: #2a3e4b; --accent: #a9d1d8; }
+.email-account p { overflow-wrap: anywhere; }
+.email-account .seg button { white-space: normal; }
+.email-account form { display: grid; gap: 12px; }
+.email-account > .btn { margin: 6px; }
