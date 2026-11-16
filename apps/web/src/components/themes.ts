@@ -1,5 +1,7 @@
 import type { Theme } from '../lib/settings';
 
+export const SELECT_GREEN = "#3ddc84"; // selected checker: distinct from per-theme movable hints
+export const SELECT_DARK = "#06361b";
 export const HINT_FILL_W = 4;
 export const HINT_EDGE_W = 8;
 

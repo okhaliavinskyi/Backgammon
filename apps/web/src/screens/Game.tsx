@@ -20,6 +20,9 @@ import {
   type Memo,
 } from '@nardy/core';
 import { SettingsScreen } from './Menus';
+import { ActionBar, PlayerStrip } from './GameHud';
+import { Icon } from '../components/icons';
+import './game-hud.css';
 import { BoardView } from '../components/Board';
 import { Cube, DiceCup, Die } from '../components/Dice';
 import { FIELD_END, FRAME, Loc, locOf, posOfSlot } from '../components/geometry';
@@ -35,8 +38,7 @@ interface Pending {
   ts: TurnState;
 }
 
-function useCompactLayout(): boolean {
-  const query = '(orientation: portrait) and (max-width: 767px)';
+function useCompactLayout(query = '(orientation: portrait) and (max-width: 767px)'): boolean {
   const [compact, setCompact] = useState(() => matchMedia(query).matches);
   useEffect(() => {
     const media = matchMedia(query);
@@ -74,6 +76,9 @@ function stepSound(s: Step) {
 export function GameScreen({ onExit }: { onExit: () => void }) {
   const T = useT();
   const compact = useCompactLayout();
+  // desktop/tablet-landscape: board left, phone-style HUD + chat in a side column (see styles.css)
+  const wide = useCompactLayout('(min-width: 900px) and (min-height: 521px)') && !compact;
+  const hud = compact || wide;
   const [moreOpen, setMoreOpen] = useState(false);
   const g = useGame();
   const st = useSettings();
@@ -173,11 +178,6 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
   const dimSet = useRef(new Set<Loc>());
   if (!busy) dimSet.current = movable;
-
-  // Auto-select when only one checker can move.
-  useEffect(() => {
-    if (movable.size === 1 && !selected) setSelected([...movable][0]);
-  }, [movable, selected]);
 
   const locToPos = useCallback(
     (loc: Loc, color: Color): number => (loc === 'bar' ? BAR : loc === 'off' ? OFF : posOfSlot(Number(loc.slice(1)), color, viewer, variant)),
@@ -296,10 +296,6 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     if (rollActor && !mayDouble && !st.autoRoll) return doRoll();
     if (!canInteract) return;
     if (selected && dests.has(loc)) return playChain(dests.get(loc)!);
-    if (movable.has(loc) && pending && mover !== null) {
-      const ds = destinationsFrom(pending.ts, locToPos(loc, mover), memoRef.current);
-      if (ds.length === 1) return playChain(ds[0].steps);
-    }
     if (movable.has(loc)) return setSelected(selected === loc ? null : loc);
     setSelected(null);
   };
@@ -406,33 +402,6 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     const p = g.players[c];
     const clk = clockFor(c);
     const active = act === c;
-    if (compact) {
-      const running = act === c && clocks?.turnStartedAt != null;
-      const elapsed = running ? Math.max(0, serverNow - clocks!.turnStartedAt!) : 0;
-      const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
-      const moveLeft = clocks?.moveTimerMs ? Math.max(0, clocks.moveTimerMs - elapsed) : null;
-      const pieceLabel = c === 0 ? T.white : st.theme === 'minimal' ? T.red : T.black;
-      return <div className={'pbar player-card' + (active ? ' active' : '')}>
-        <div className="player-piece">
-          <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
-          <span>{pieceLabel}</span>
-        </div>
-        <div className="player-card-body">
-          <div className="pname" title={p?.name}>{p?.name ?? '—'}</div>
-          {p && !p.connected && <span className="tag warn">{T.offline}</span>}
-          <div className="player-card-state">
-            <i className={'turn-light' + (active ? ' active' : '')} title={active ? T.hotseatTurn : undefined} />
-            <span className="player-score" title={T.score}>{m.score[c]}</span>
-            {m.cube.owner === c && m.settings.cube && <Cube value={m.cube.value} />}
-          </div>
-          <div className="pmeta" data-pips={c === viewer ? 'me' : 'opp'}>{pipCount(board, c)} {T.pips} · {board.off[c]}/15</div>
-        </div>
-        <div className="player-timers">
-          <span className="bank-time" title={T.bank}>{bankLeft === null ? '—' : fmt(bankLeft)}</span>
-          <span className={'move-time' + (clk?.low ? ' low' : '')} title={T.moveTimer}>{moveLeft === null ? '—' : fmt(moveLeft)}</span>
-        </div>
-      </div>;
-    }
     return (
       <div className={'pbar' + (active ? ' active' : '') + (bottom ? ' bottom' : '')}>
         <span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />
@@ -453,27 +422,51 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     );
   };
 
+  const strip = (c: Color) => {
+    const p = g.players[c], clk = clockFor(c), running = act === c && clocks?.turnStartedAt != null;
+    const elapsed = running ? Math.max(0, serverNow - clocks!.turnStartedAt!) : 0;
+    const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
+    const moveLeft = clocks?.moveTimerMs ? Math.max(0, clocks.moveTimerMs - elapsed) : null;
+    const mine = c === viewer;
+    return <PlayerStrip key={c} name={p?.name ?? '—'} offline={!!p && !p.connected} mine={mine} active={act === c} statusText={statusText}
+      pips={pipCount(board, c)} pipDiff={pipCount(board, other(c)) - pipCount(board, c)} off={board.off[c]} score={m.score[c]}
+      cube={m.cube.owner === c && m.settings.cube ? <Cube value={m.cube.value} /> : null}
+      pieceChip={<span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={st.theme} />}
+      bank={bankLeft === null ? null : fmt(bankLeft)} move={moveLeft === null ? null : fmt(moveLeft)} low={!!clk?.low} />;
+  };
+
+  const hasPending = !!pending && !sent && pending.chains.length > 0;
+  const actionBar = <ActionBar
+    canUndo={hasPending && (sendAt !== null || !busy)} undoCountdownMs={sendAt !== null ? UNDO_MS : null} undo={undo}
+    canDone={hasPending && turnDone && !busy && (!st.autoConfirm || paused)} done={submit}
+    onReact={(e) => ctrl.emoji(e)} emojis={EMOJIS}
+    onChat={g.mode === 'online' && compact ? () => setChatOpen((o) => !o) : null} chatDot={g.chat.length > 0 && !chatOpen}
+    extra={<>{canClaim && <button className="btn gold" onClick={() => ctrl.claim()}>{T.claimWin}</button>}
+      {mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>×2 {T.double}{st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}</button>}</>} />;
+
+
   const nextIn = clocks?.nextGameAt ? Math.max(0, clocks.nextGameAt - (g.mode === 'online' ? serverNow : now)) : null;
 
   return (
-    <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '')}>
+    <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '') + (wide ? ' desk2' : '') + (wide && g.mode === 'online' ? ' has-chat' : '')}>
       <header className="game-top">
         <button className="icon-btn" onClick={onExit} aria-label={T.toMenu}>
-          ←
+          {hud ? <Icon name="back" /> : '←'}
         </button>
-        <div className="score">
-          {!compact && <span>{nameOf(0)}</span>}
+        {!wide && <div className="score">
+          {!hud && <span>{nameOf(0)}</span>}
           <b>
             {m.score[0]} : {m.score[1]}
           </b>
-          {!compact && <span>{nameOf(1)}</span>}
+          {!hud && <span>{nameOf(1)}</span>}
           <small>
             {T.matchLength} {m.settings.matchLength} · {variant === 'long' ? T.long : T.short}
             {m.crawford ? ` · ${T.crawford}` : ''}
           </small>
-        </div>
+        </div>}
+        {wide && <small className="desk-meta">{T.matchLength} {m.settings.matchLength} · {variant === 'long' ? T.long : T.short}{m.crawford ? ` · ${T.crawford}` : ''}</small>}
         <div className="game-top-actions">
-          {g.mode === 'online' && !compact && <button className="icon-btn" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
+          {g.mode === 'online' && !hud && <button className="icon-btn" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
             💬{g.chat.length > 0 && !chatOpen && <i className="dot" />}
           </button>}
           <button className="icon-btn settings-button" aria-label={T.settings} onClick={() => setSettingsOpen(true)}>
@@ -482,13 +475,17 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
               <circle cx="12" cy="12.8" r="3.2" />
             </svg>
           </button>
+          {hud && <button className="icon-btn" aria-label={T.more} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}><Icon name="dots" /></button>}
         </div>
       </header>
 
-      {!compact && playerBar(opp)}
+      {hud && <span className="status sr-status" role="status">{statusText}</span>}
+      {wide && <div className="desk-score">{m.score[0]} : {m.score[1]}</div>}
+      {hud ? <div className="area-opp">{strip(opp)}</div> : playerBar(opp)}
 
       <div className={'board-wrap' + (compact ? ' compact-board' : '')} style={{
         aspectRatio: `${boardWidth} / ${compact ? 1100 : 800}`,
+        ['--ar' as string]: boardWidth / 800,
         width: compact ? `min(100%, calc((100dvh - 290px) * ${boardWidth} / 1100))` : `min(100%, 1100px, calc((100dvh - 300px) * ${boardWidth} / 800))`,
       }}>
         <BoardView
@@ -537,9 +534,9 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         {rollActor && !shaking && (
           <div className="center-actions">
             {!st.autoRoll && <button className="btn primary big" onClick={doRoll}>
-              🎲 {T.roll}
+              {hud ? <Icon name="dice" /> : '🎲'} {T.roll}
             </button>}
-            {mayDouble && !doubled && !compact && (
+            {mayDouble && !doubled && !hud && (
               <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
                 ×2 {T.double}
                 {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
@@ -554,7 +551,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
                   setMotionOk(await requestMotionPermission());
                 }}
               >
-                📳 {T.enableShake}
+                {hud ? <Icon name="motion" /> : '📳'} {T.enableShake}
               </button>
             )}
           </div>
@@ -645,19 +642,11 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
         {g.conn !== 'open' && <div className="conn-banner">{g.conn === 'connecting' ? T.connecting : T.reconnecting}</div>}
       </div>
 
-      {!compact && playerBar(viewer, true)}
+      {!hud && playerBar(viewer, true)}
 
-      <div className={compact ? 'mobile-hud' : 'desktop-hud'}>
-      {compact && playerBar(viewer, true)}
+      {hud ? <div className="mobile-hud">{strip(viewer)}{actionBar}</div> : <>
+      <div className="desktop-hud">
       <div className="controls">
-        {compact && <div className="quick-social">
-          {g.mode === 'online' && <button className="btn quick-chat" onClick={() => setChatOpen((open) => !open)} aria-label={T.chat}>
-            💬 {T.chat}{g.chat.length > 0 && !chatOpen && <i className="dot" />}
-          </button>}
-          <div className="quick-reactions">
-            {(['👍', '😂', '🔥', '🤝'] as const).map((emoji) => <button key={emoji} type="button" onClick={() => ctrl.emoji(emoji)} aria-label={emoji}>{emoji}</button>)}
-          </div>
-        </div>}
         <span className="status">{statusText}</span>
         {pending && !sent && pending.chains.length > 0 && (
           <>
@@ -681,35 +670,24 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
             {T.claimWin}
           </button>
         )}
-        {!compact && m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && (
+        {!hud && m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && (
           <button className="btn subtle" onClick={() => setConfirmResign(true)}>
             ⚑ {T.resign}
           </button>
         )}
-        {compact && mayDouble && !doubled && <button className="btn gold" onClick={() => { setDoubled(true); ctrl.double(); }}>
-          ×2 {T.double}
-          {st.autoRoll && <i className="countdown" style={{ ['--ms' as string]: `${DOUBLE_MS}ms` }} />}
-        </button>}
-        {compact && <button className="icon-btn" aria-label={T.more} onClick={() => setMoreOpen((open) => !open)}>⋯</button>}
       </div>
 
-      {compact && playerBar(opp)}
       </div>
 
-      {(!compact || moreOpen) && <div className={compact ? 'phone-more' : undefined}>
-      {compact && <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}>✕</button>}
-      <div className="emoji-bar">
-        {EMOJIS.map((e) => (
-          <button key={e} onClick={() => ctrl.emoji(e)} aria-label={e}>
-            {e}
-          </button>
-        ))}
-      </div>
-
-      {compact && <button className="btn subtle" onClick={() => { setMoreOpen(false); setConfirmResign(true); }}>⚑ {T.resign}</button>}
+      <div className="desk-more"><div className="emoji-bar">{EMOJIS.map((e) => <button key={e} onClick={() => ctrl.emoji(e)} aria-label={e}>{e}</button>)}</div></div>
+      </>}
+      {hud && moreOpen && <div className="phone-more hud-more">
+        <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}><Icon name="close" /></button>
+        <button className="btn" onClick={() => { setMoreOpen(false); setSettingsOpen(true); }}><Icon name="gear" /> {T.settings}</button>
+        {m.phase !== 'gameover' && m.phase !== 'matchover' && (g.mode === 'local' || act !== null) && <button className="btn subtle" onClick={() => { setMoreOpen(false); setConfirmResign(true); }}>{T.resign}</button>}
       </div>}
 
-      {chatOpen && g.mode === 'online' && (
+      {(chatOpen || wide) && g.mode === 'online' && (
         <aside className="chat">
           <div className="chat-head">
             <b>{T.chat}</b>

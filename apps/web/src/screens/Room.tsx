@@ -4,7 +4,8 @@ import { useGame } from '../controllers/store';
 import { useT } from '../lib/i18n';
 import { useSettings } from '../lib/settings';
 import { GameScreen } from './Game';
-import type { Nav } from './Menus';
+import { PageHead, type Nav } from './Menus';
+import { Icon } from '../components/icons';
 
 interface Info {
   exists: boolean;
@@ -63,6 +64,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   if (!info.exists || noSeat || fatal === 'room_full' || fatal === 'room_expired' || fatal === 'room_gone') {
     return (
       <div className="screen center">
+        <div className="empty-ico" aria-hidden><Icon name="people" size={48} /></div>
         <p>{noSeat || fatal === 'room_full' ? T.roomFull : T.roomNotFound}</p>
         <button className="btn" onClick={() => nav('/online')}>
           ← {T.back}
@@ -72,10 +74,9 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   }
   if (rejoin && (!ready || fatal === 'bad_password')) {
     return <div className="screen form">
-      <button className="link" onClick={() => nav('/online')}>← {T.back}</button>
-      <h2>{T.rejoinAs} {info.offlineName}</h2>
+      <PageHead title={<>{T.rejoinAs} {info.offlineName}</>} onBack={() => nav('/online')} />
       {fatal === 'bad_password' && <p className="error">{T.badPassword}</p>}
-      <form onSubmit={(e) => { e.preventDefault(); localStorage.setItem('nardy.name.' + id, helloName); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
+      <form className="card pw-form" onSubmit={(e) => { e.preventDefault(); localStorage.setItem('nardy.name.' + id, helloName); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
         {info.hasPassword && <label className="field">
           <span>{T.password}</span>
           <input type="password" autoFocus value={pwInput} onChange={(e) => setPwInput(e.target.value)} />
@@ -87,12 +88,10 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   if (!ready || fatal === 'bad_password') {
     return (
       <div className="screen form">
-        <button className="link" onClick={() => nav('/online')}>
-          ← {T.back}
-        </button>
-        <h2>🔒 {T.enterPassword}</h2>
+        <PageHead title={<><Icon name="lock" /> {T.enterPassword}</>} onBack={() => nav('/online')} />
         {fatal === 'bad_password' && <p className="error">{T.badPassword}</p>}
         <form
+          className="card pw-form"
           onSubmit={(e) => {
             e.preventDefault();
             setFatal(null);
@@ -109,39 +108,40 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
     );
   }
 
-  if (!match) {
-    return (
-      <div className="screen center waiting">
-        <div className="spinner" aria-hidden>
-          🎲
-        </div>
-        <h2>{T.waitingOpponent}</h2>
-        <p>{T.shareLink}</p>
-        <div className="share">
-          <code>{link}</code>
-          <button
-            className="btn small"
-            onClick={async () => {
-              try {
-                if (navigator.share) await navigator.share({ url: link, title: T.appName });
-                else await navigator.clipboard.writeText(link);
-                setCopied(true);
-              } catch {
-                /* cancelled */
-              }
-            }}
-          >
-            {copied ? T.copied : T.copy}
-          </button>
-        </div>
-        <p className="code big-code">{id}</p>
-        {room?.hasPassword && <p className="muted">🔒 {T.locked}</p>}
-        <button className="link" onClick={() => nav('/online')}>
-          ← {T.back}
-        </button>
+if (!match) {
+  const s = room?.settings;
+  const share = async () => {
+    try {
+      if (navigator.share) await navigator.share({ url: link, title: T.appName });
+      else await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch { /* cancelled */ }
+  };
+  return (
+    <div className="screen form wait2">
+      <PageHead title={T.waitingOpponent} onBack={() => nav('/online')} />
+      <div className="code-card">
+        <span className="muted">{T.roomCode}</span>
+        <p className="code big-code" aria-label={id}>{[...id].map((ch, i) => <span key={i}>{ch}</span>)}</p>
+        {s && <span className={'status-pill' + (s.isPublic ? ' ok' : '')}>{s.isPublic ? T.visibleInLobby : T.hiddenFromLobby}</span>}
       </div>
-    );
-  }
+      <button className="btn primary big" onClick={share}><Icon name="share" /> {T.shareLink2}</button>
+      <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(link); setCopied(true); } catch { /* ignore */ } }}>
+        <Icon name="copy" /> {copied ? T.copied : T.copyLink}
+      </button>
+      {s && (
+        <dl className="params">
+          <div><dt>{T.variant}</dt><dd>{s.variant === 'long' ? T.long : T.short}</dd></div>
+          <div><dt>{T.matchLength}</dt><dd>{s.matchLength}</dd></div>
+          <div><dt>{T.moveTimer}</dt><dd>{s.moveTimer ? `${s.moveTimer} ${T.sec}` : T.off}{s.bank ? ` + ${s.bank / 60} ${T.min}` : ''}</dd></div>
+          <div><dt>{T.access}</dt><dd>{room?.hasPassword ? T.accessPassword : T.accessOpen}</dd></div>
+        </dl>
+      )}
+      <button className="link leave" onClick={() => nav('/online')}>{T.leaveRoom}</button>
+    </div>
+  );
+}
+
 
   return <GameScreen onExit={() => nav('/online')} />;
 }
