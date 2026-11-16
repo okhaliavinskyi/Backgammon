@@ -122,6 +122,26 @@ describe('room server', () => {
     expect(Math.max(...final.score)).toBeGreaterThanOrEqual(1);
   }, 120_000);
 
+  it('time bank refills after each game of a match', async () => {
+    const id = await createRoom({ variant: 'short', matchLength: 3, cube: false, moveTimer: 15, bank: 180, isPublic: false });
+    const a = new Client();
+    const b = new Client();
+    await a.open(id);
+    a.send({ t: 'hello', name: 'Alice' });
+    await a.wait((m) => m.t === 'welcome');
+    await b.open(id);
+    b.send({ t: 'hello', name: 'Bob' });
+    await b.wait((m) => m.t === 'welcome');
+    await a.wait((m) => m.t === 'state' && !!m.match);
+    const m = a.lastState()!;
+    const c = [a, b][m.turn];
+    // Think past the 15 s move timer so the bank is spent, then end the game.
+    await new Promise((r) => setTimeout(r, 17_000));
+    c.send({ t: 'resign' });
+    const over = (await a.wait((x) => x.t === 'state' && x.match?.phase === 'gameover')) as Extract<ServerMsg, { t: 'state' }>;
+    expect(over.clocks.bank).toEqual([180_000, 180_000]);
+  }, 40_000);
+
   it('chat and emoji are relayed and sanitized', async () => {
     const id = await createRoom({ variant: 'long', matchLength: 1, isPublic: false });
     const a = new Client();
