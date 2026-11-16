@@ -1,4 +1,5 @@
 import { loadProgress, useProgress } from '../lib/progress';
+import { gameBase } from '../lib/paths';
 import type { ClientMsg, ServerMsg, Step } from '@nardy/core';
 import { Controller, initialGameStore, pushEmoji, useGame } from './store';
 import { pop } from '../lib/sound';
@@ -49,7 +50,7 @@ export class RemoteController implements Controller {
   private connect(): void {
     if (this.disposed) return;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${proto}//${location.host}/api/rooms/${this.roomId}/ws`);
+    const ws = new WebSocket(`${proto}//${location.host}${gameBase}/api/rooms/${this.roomId}/ws`);
     this.ws = ws;
     ws.onopen = () => {
       this.retry = 0;

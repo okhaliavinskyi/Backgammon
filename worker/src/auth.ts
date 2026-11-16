@@ -92,7 +92,7 @@ export async function handleAuth(
       kind,
       profile,
       sanitizeName(body.name),
-      url.origin,
+      url.origin + ((env.AUTH_MOUNTED_ORIGINS ?? '').split(',').map(s => s.trim()).includes(url.origin) ? '/backgammon' : ''),
       body.lang === 'ru',
     );
     return json({ accepted: true });

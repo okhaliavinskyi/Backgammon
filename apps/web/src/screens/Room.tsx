@@ -1,4 +1,5 @@
 import { PrivacyNotice } from './Legal';
+import { gamePath } from '../lib/paths';
 import { useEffect, useRef, useState } from 'react';
 import { RemoteController, getToken } from '../controllers/remote';
 import { useGame } from '../controllers/store';
@@ -29,7 +30,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   const room = useGame((s) => s.room);
 
   useEffect(() => {
-    fetch(`/api/rooms/${id}`)
+    fetch(gamePath(`/api/rooms/${id}`))
       .then((r) => r.json())
       .then(setInfo)
       .catch(() => setInfo({ exists: false }));
@@ -59,7 +60,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, id, password, fatal]);
 
-  const link = `${location.origin}/r/${id}`;
+  const link = `${location.origin}${gamePath('/r/' + id)}`;
 
   if (info?.cancelled || room?.ranked?.cancelled || fatal === 'match_cancelled' || fatal === 'not_invited') return <div className="screen form"><p>{useSettings.getState().lang === 'ru' ? 'Рейтинговый матч отменён или предназначен другим участникам. Elo не изменён, если матч не начался.' : 'Ranked match cancelled or reserved for other players. Unstarted matches do not affect Elo.'}</p><button className="btn primary" onClick={() => nav('/ranked')}>{useSettings.getState().lang === 'ru' ? 'К подбору' : 'Matchmaking'}</button></div>;
 

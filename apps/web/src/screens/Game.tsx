@@ -1,3 +1,4 @@
+import { gamePath } from '../lib/paths';
 import { ALL_COSMETICS, ratingLabel } from '@nardy/core';
 import { useProgress } from '../lib/progress';
 import { GameProgress, PlayerAvatar } from './Progress';
@@ -702,7 +703,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
           <div className="chat-head">
             <b>{T.chat}</b>
             <button className="link" onClick={() => setHideOpponentChat((v) => !v)}>{st.lang === 'ru' ? (hideOpponentChat ? 'Показать соперника' : 'Скрыть соперника') : (hideOpponentChat ? 'Show opponent' : 'Hide opponent')}</button>
-            <a href="/legal" target="_blank" rel="noreferrer">{st.lang === 'ru' ? 'Жалоба' : 'Report'}</a>
+            <a href={gamePath('/legal')} target="_blank" rel="noreferrer">{st.lang === 'ru' ? 'Жалоба' : 'Report'}</a>
             <button className="icon-btn" onClick={() => setChatOpen(false)}>
               ✕
             </button>

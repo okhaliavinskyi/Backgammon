@@ -1,5 +1,6 @@
 import { updateProgress, useProgress } from '../lib/progress';
 import { LegalLinks, PrivacyNotice } from './Legal';
+import { gamePath } from '../lib/paths';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   BANKS,
@@ -110,7 +111,7 @@ export function Home({ nav }: { nav: Nav }) {
     let active = true;
     const refresh = async () => {
       try {
-        const response = await fetch(`/api/rooms/${encodeURIComponent(room.id)}`);
+        const response = await fetch(gamePath(`/api/rooms/${encodeURIComponent(room.id)}`));
         if (!response.ok) return;
         const info = await response.json();
         if (!active) return;
@@ -126,6 +127,7 @@ export function Home({ nav }: { nav: Nav }) {
   }, []);
   return (
     <div className="screen home2">
+      {import.meta.env.BASE_URL !== '/' && <a className="portal-back" href="/">← OnlineBoard · {T.back}</a>}
       <header className="home2-head">
         <span className="home2-brand">
           <Logo size={36} />
@@ -282,7 +284,7 @@ export function Online({ nav }: { nav: Nav }) {
   const [rooms, setRooms] = useState<LobbyEntry[] | null>(null);
   const [code, setCode] = useState('');
   const load = () =>
-    fetch('/api/rooms')
+    fetch(gamePath('/api/rooms'))
       .then((r) => r.json())
       .then((d) => setRooms(d.rooms ?? []))
       .catch(() => setRooms([]));
@@ -393,7 +395,7 @@ export function CreateRoom({ nav }: { nav: Nav }) {
     setBusy(true);
     setErr('');
     try {
-      const r = await fetch('/api/rooms', {
+      const r = await fetch(gamePath('/api/rooms'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ settings: s, password, name }),

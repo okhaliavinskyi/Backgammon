@@ -1,3 +1,4 @@
+import { gamePath } from './paths';
 import { create } from 'zustand';
 export const useAccount = create<{
   loaded: boolean;
@@ -6,7 +7,7 @@ export const useAccount = create<{
 }>(() => ({ loaded: false, configured: false, account: null }));
 export async function loadAccount() {
   try {
-    const r = await fetch('/api/auth/status');
+    const r = await fetch(gamePath('/api/auth/status'));
     if (!r.ok) return;
     useAccount.setState({ ...(await r.json()), loaded: true });
   } catch {
@@ -14,7 +15,7 @@ export async function loadAccount() {
   }
 }
 export async function authPost(path: string, body: unknown) {
-  const r = await fetch('/api/auth/' + path, {
+  const r = await fetch(gamePath('/api/auth/' + path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

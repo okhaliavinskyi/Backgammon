@@ -1,3 +1,4 @@
+import { gamePath } from '../lib/paths';
 import { useEffect, useState } from 'react';
 import { authError, authPost, loadAccount, useAccount } from '../lib/auth';
 import { useSettings } from '../lib/settings';
@@ -37,7 +38,7 @@ export function EmailAccountPanel() {
                   if (guestName !== null) useSettings.getState().set({ name: guestName });
                   sessionStorage.removeItem('nardy.guestName');
                 } catch { /* Browser storage may be unavailable. */ }
-                location.replace('/profile');
+                location.replace(gamePath('/profile'));
               } catch (e) {
                 setMessage(authError((e as Error).message, ru));
                 setBusy(false);
@@ -197,7 +198,7 @@ export function EmailLinkScreen({ nav }: { nav: Nav }) {
                 }
                 if (result.name)
                   useSettings.getState().set({ name: result.name });
-                location.replace('/profile');
+                location.replace(gamePath('/profile'));
               } catch (e) {
                 setError(authError((e as Error).message, ru));
                 setBusy(false);

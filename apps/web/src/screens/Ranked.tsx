@@ -1,3 +1,4 @@
+import { gamePath } from '../lib/paths';
 import { useEffect, useRef, useState } from 'react';
 import { ratingLabel, type SearchStatus, type Variant } from '@nardy/core';
 import { useSettings } from '../lib/settings';
@@ -19,12 +20,12 @@ export function RankedScreen({ nav }: { nav: Nav }) {
     if (data.status === 'matched') navigate.current('/r/' + data.room);
   };
   async function request(method: 'GET' | 'POST' | 'DELETE', v = variant): Promise<SearchStatus> {
-    const r = await fetch('/api/ranked/' + v, { method, headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {}, body: method === 'POST' ? JSON.stringify({ name: useSettings.getState().name }) : undefined, signal: AbortSignal.timeout(8000) });
+    const r = await fetch(gamePath('/api/ranked/' + v), { method, headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {}, body: method === 'POST' ? JSON.stringify({ name: useSettings.getState().name }) : undefined, signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error('search_failed'); return r.json();
   }
   useEffect(() => {
     disposed.current = false;
-    return () => { disposed.current = true; void fetch('/api/ranked/' + current.current, { method: 'DELETE', keepalive: true }).catch(() => {}); };
+    return () => { disposed.current = true; void fetch(gamePath('/api/ranked/' + current.current), { method: 'DELETE', keepalive: true }).catch(() => {}); };
   }, []);
   useEffect(() => {
     let active = true;

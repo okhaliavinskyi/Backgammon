@@ -10,6 +10,7 @@ routes = [
 [vars]
 EMAIL_FROM = "login@mail.onlineboard.fun"
 # Keep email available on the original host so existing guests can save progress.
+AUTH_MOUNTED_ORIGINS = "https://onlineboard.fun"
 AUTH_ORIGINS = "https://onlineboard.fun,https://www.onlineboard.fun,https://nardy.o-khaliavinskyi.workers.dev"
 
 [assets]
