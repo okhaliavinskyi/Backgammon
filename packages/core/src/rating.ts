@@ -23,9 +23,9 @@ export function updatedRating(own: Rating, opponent: Rating, won: boolean): Rati
 export function matchingRange(waitMs: number): number {
   return waitMs >= 120000 ? Infinity : 100 + Math.floor(Math.max(0, waitMs) / 15000) * 100;
 }
-export interface RatingEvent { room: string; variant: Variant; own: Rating; opponent: Rating; won: boolean; at: number }
+export interface RatingEvent { id: string; room: string; variant: Variant; own: Rating; opponent: Rating; won: boolean; at: number }
 export interface RankedView {
   ratings: [Rating, Rating]; changes?: [number, number]; settled: boolean; cancelled: boolean; joinBy: number;
 }
-export interface RankedTicket { key: string; room: string | null; expires: number }
+export interface RankedTicket { id: string; key: string; room: string | null; expires: number }
 export type SearchStatus = { status: 'idle' | 'busy' | 'cancelled' } | { status: 'searching'; since: number } | { status: 'matched'; room: string };

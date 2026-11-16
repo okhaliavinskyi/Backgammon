@@ -165,4 +165,20 @@ describe('ranked matchmaking, browser guests', () => {
     } finally { await browser.close(); }
   }, 150000);
 
+  it('lets a guest leave for a friend game when matchmaking cancellation is unavailable', async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const ctx = await context(browser), page = await ctx.newPage();
+      await page.goto(BASE + '/ranked');
+      await page.locator('input[maxlength="20"]').fill('Guest');
+      await page.getByRole('button', { name: /Find opponent|Найти соперника/, exact: true }).click();
+      await page.getByRole('button', { name: /Cancel search|Отменить поиск/, exact: true }).waitFor();
+      await page.route('**/api/ranked/long', route => route.request().method() === 'DELETE'
+        ? route.fulfill({ status: 503, json: { error: 'matchmaking_unavailable' } }) : route.continue());
+      await page.getByRole('button', { name: /Play a friend|Играть с другом/, exact: true }).click();
+      await page.waitForURL(/\/online$/);
+      expect(await page.locator('input[type="email"]').count()).toBe(0);
+    } finally { await browser.close(); }
+  }, 30000);
+
 });

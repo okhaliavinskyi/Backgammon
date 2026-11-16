@@ -64,32 +64,32 @@ export class ProfileDO extends DurableObject<Env> {
       if (!this.getProfile()) return null;
       const t = this.rankedTicket();
       if (t && (t.key !== key || t.room)) return t;
-      const next = { key, room: null, expires: Date.now() + 45000 };
+      const next = { id: t?.id ?? crypto.randomUUID(), key, room: null, expires: Date.now() + 45000 };
       this.write('ranked', next); return next;
     });
   }
-  assignRanked(key: string, room: string): boolean {
+  assignRanked(key: string, room: string, ticketId: string): boolean {
     return this.ctx.storage.transactionSync(() => {
       const t = this.rankedTicket();
-      if (!t || t.key !== key || (t.room && t.room !== room)) return false;
-      this.write('ranked', { key, room, expires: 0 }); return true;
+      if (!t || t.id !== ticketId || t.key !== key || (t.room && t.room !== room)) return false;
+      this.write('ranked', { id: t.id, key, room, expires: 0 }); return true;
     });
   }
-  releaseRanked(key: string): void {
+  releaseRanked(key: string, ticketId?: string): void {
     const t = this.rankedTicket();
-    if (t && (t.room === key || (!t.room && t.key === key))) this.ctx.storage.sql.exec('DELETE FROM data WHERE id = ?', 'ranked');
+    if (t && (!ticketId || t.id === ticketId) && (t.room === key || (!t.room && t.key === key))) this.ctx.storage.sql.exec('DELETE FROM data WHERE id = ?', 'ranked');
   }
   rate(event: RatingEvent): boolean {
     return this.ctx.storage.transactionSync(() => {
       const p = this.getProfile(); if (!p) return true; // Never recreate erased profiles.
-      if (this.read('rating:' + event.room)) return true;
+      if (this.read('rating:' + event.id)) return true;
       const ticket = this.rankedTicket();
       if (ticket?.room !== event.room) return true; // Deleted/recreated or cancelled identity.
       const current = p.ratings[event.variant];
       if (current.elo !== event.own.elo || current.matches !== event.own.matches) throw new Error('rating_snapshot_mismatch');
       p.ratings[event.variant] = updatedRating(event.own, event.opponent, event.won);
       this.write('profile', p);
-      this.write('rating:' + event.room, { ...event, delta: p.ratings[event.variant].elo - current.elo, version: 1 });
+      this.write('rating:' + event.id, { ...event, delta: p.ratings[event.variant].elo - current.elo, version: 1 });
       this.releaseRanked(event.room); return true;
     });
   }

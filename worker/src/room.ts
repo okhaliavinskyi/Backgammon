@@ -1,3 +1,4 @@
+import { firstRankedDeadline } from './ranked-policy';
 import { eloChange, type Rating, type RatingEvent, type Variant } from '@nardy/core';
 import { DurableObject } from 'cloudflare:workers';
 import {
@@ -42,6 +43,7 @@ interface Seat {
 }
 
 interface RankedState {
+  matchId: string;
   profiles: [string, string]; ratings: [Rating, Rating]; ready: boolean; joinBy: number; cancelled: boolean;
   results?: [RatingEvent, RatingEvent]; delivered: [boolean, boolean];
 }
@@ -134,11 +136,15 @@ export class RoomDO extends DurableObject<Env> {
     return this.enqueueValue(async () => {
       if (this.s) return !!this.s.ranked && this.s.ranked.profiles.every((p,c) => p === players[c].profile);
       if (!await this.init(id, { variant, matchLength: 3, moveTimer: 15, bank: 300, cube: variant === 'short', isPublic: false }, null, players[0].name)) return false;
-      this.s!.ranked = { profiles: [players[0].profile, players[1].profile], ratings: [players[0].rating, players[1].rating], ready: false, joinBy: Date.now() + 60000, cancelled: false, delivered: [false,false] };
+      this.s!.ranked = { matchId: crypto.randomUUID(), profiles: [players[0].profile, players[1].profile], ratings: [players[0].rating, players[1].rating], ready: false, joinBy: Date.now() + 60000, cancelled: false, delivered: [false,false] };
       this.s!.seats = players.map(p => ({ name: p.name, profile: p.profile, token: randomToken(), disconnectedAt: Date.now() })) as [Seat,Seat];
       await this.save(); await this.scheduleAlarm(); return true;
     });
   }
+  rankedLifecycle(): { ready: boolean; cancelled: boolean } {
+    return { ready: this.s?.ranked?.ready ?? false, cancelled: this.s?.ranked?.cancelled ?? true };
+  }
+
   async activateRanked(): Promise<void> {
     return this.enqueue(async () => {
       if (!this.s?.ranked || this.s.ranked.cancelled) return;
@@ -264,6 +270,7 @@ export class RoomDO extends DurableObject<Env> {
       this.send(ws, { t: 'welcome', you: current, token: s.seats[current]!.token });
       return this.persistAndBroadcast(ws);
     }
+    await this.settleRankedDeadline(Date.now());
     if (s.ranked && !s.match && Date.now() >= s.ranked.joinBy && !s.ranked.cancelled) await this.abortRanked();
     const proposedProfile = (ws.deserializeAttachment() as Attachment).profile;
     if (s.ranked && (s.ranked.cancelled || !proposedProfile || !s.ranked.profiles.includes(proposedProfile))) {
@@ -418,6 +425,7 @@ export class RoomDO extends DurableObject<Env> {
       return;
     }
     const now = Date.now();
+    if (await this.settleRankedDeadline(now)) return;
     // Charge the running clock first: an action after the deadline is a timeout.
     if (this.deadline() !== null && now > this.deadline()! + 500 && action.type !== 'timeout') {
       await this.onAlarmWork(now);
@@ -485,7 +493,7 @@ export class RoomDO extends DurableObject<Env> {
 
   private async scheduleAlarm(): Promise<void> {
     const s = this.s!;
-    const times = [s.lastActivity + IDLE_MS];
+    const times = s.ranked && s.match && s.match.phase !== 'matchover' ? [] : [s.lastActivity + IDLE_MS];
     const d = this.deadline();
     if (d !== null) times.push(d);
     if (s.nextGameAt !== null) times.push(s.nextGameAt);
@@ -503,21 +511,27 @@ export class RoomDO extends DurableObject<Env> {
     await this.enqueue(() => this.onAlarmWork(Date.now()));
   }
 
+  private async settleRankedDeadline(now: number): Promise<boolean> {
+    const s = this.s!;
+    if (!s.ranked || !s.match || s.match.phase === 'matchover') return false;
+    const deadline = this.deadline(), active = this.active();
+    const expired = firstRankedDeadline(now, deadline !== null && active !== null ? { player: active, at: deadline } : null,
+      [s.seats[0]?.disconnectedAt ?? null, s.seats[1]?.disconnectedAt ?? null]);
+    if (!expired) return false;
+    if (s.match.phase === 'gameover') {
+      s.match = applyAction(s.match, { type: 'next', player: 0 }, cryptoRng);
+      s.progressTurns = [0,0];
+    }
+    s.match = applyAction(s.match, { type: 'timeout', player: expired.player }, cryptoRng);
+    this.syncClock(now); await this.persistAndBroadcast(); return true;
+  }
+
   private async onAlarmWork(now: number): Promise<void> {
     const s = this.s!;
     if (s.ranked?.cancelled && s.ranked.delivered.some(done => !done)) { await this.abortRanked(); return; }
     if (s.ranked && !s.match && !s.ranked.cancelled && now >= s.ranked.joinBy) { await this.abortRanked(); return; }
-    if (s.ranked && s.match && s.match.phase !== 'matchover') {
-      const disconnected = ([0,1] as Color[]).filter(c => s.seats[c]?.disconnectedAt != null).sort((a,b) => s.seats[a]!.disconnectedAt! - s.seats[b]!.disconnectedAt!);
-      const loser = disconnected[0];
-      if (loser !== undefined && now - s.seats[loser]!.disconnectedAt! >= CLAIM_AFTER_MS) {
-        // A party intermission is advanced before forfeiting the whole match.
-        if (s.match.phase === 'gameover') s.match = applyAction(s.match, { type: 'next', player: 0 }, cryptoRng);
-        s.match = applyAction(s.match, { type: 'timeout', player: loser }, cryptoRng);
-        this.syncClock(now); await this.persistAndBroadcast(); return;
-      }
-    }
-    if (now >= s.lastActivity + IDLE_MS && !s.progressOutbox?.length && !(s.ranked?.results && s.ranked.delivered.some(done => !done))) {
+    if (await this.settleRankedDeadline(now)) return;
+    if (!(s.ranked && s.match && s.match.phase !== 'matchover') && now >= s.lastActivity + IDLE_MS && !s.progressOutbox?.length && !(s.ranked?.results && s.ranked.delivered.some(done => !done))) {
       const anyoneHere = this.ctx.getWebSockets().some((w) => (w.deserializeAttachment() as Attachment)?.seat !== null);
       if (!anyoneHere) return this.destroy();
       s.lastActivity = now; // players are connected and thinking — keep the room alive
@@ -595,7 +609,7 @@ export class RoomDO extends DurableObject<Env> {
     this.queueProgress();
     const ranked = this.s?.ranked, match = this.s?.match;
     if (ranked && match?.phase === 'matchover' && !ranked.results) {
-      ranked.results = ([0,1] as const).map(c => ({ room: this.s!.id, variant: this.s!.settings.variant, own: ranked.ratings[c], opponent: ranked.ratings[other(c)], won: match.matchWinner === c, at: Date.now() })) as [RatingEvent,RatingEvent];
+      ranked.results = ([0,1] as const).map(c => ({ id: ranked.matchId, room: this.s!.id, variant: this.s!.settings.variant, own: ranked.ratings[c], opponent: ranked.ratings[other(c)], won: match.matchWinner === c, at: Date.now() })) as [RatingEvent,RatingEvent];
     }
     await this.save();
     await this.flushProgress();

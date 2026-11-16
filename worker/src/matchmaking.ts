@@ -1,8 +1,9 @@
+import { pendingResolution } from './ranked-policy';
 import { DurableObject } from 'cloudflare:workers';
 import { matchingRange, type Rating, type SearchStatus, type Variant } from '@nardy/core';
 import type { Env } from './index';
 import { randomId } from './util';
-interface Entry { profile: string; name: string; rating: Rating; since: number; seen: number }
+interface Entry { ticket: string; profile: string; name: string; rating: Rating; since: number; seen: number }
 interface Pending { room: string; variant: Variant; players: [Entry, Entry]; at: number }
 interface State { variant?: Variant; entries: Entry[]; pending: Pending[] }
 /** One coordination atom per variant. Profile tickets prevent cross-pool double entry. */
@@ -40,7 +41,7 @@ export class MatchmakingDO extends DurableObject<Env> {
         ticket = await stub.reserveRanked(key);
         if (!ticket || ticket.key !== key || ticket.room) return ticket?.room ? { status: 'matched', room: ticket.room } : { status: 'busy' };
         const p = await stub.getProfile(); if (!p) return { status: 'idle' };
-        if (!entry) { entry = { profile, name, rating: p.ratings[variant], since: Date.now(), seen: Date.now() }; this.state.entries.push(entry); }
+        if (!entry) { entry = { ticket: ticket.id, profile, name, rating: p.ratings[variant], since: Date.now(), seen: Date.now() }; this.state.entries.push(entry); }
         else { entry.seen = Date.now(); entry.name = name || entry.name; }
         await this.save(); await this.pair(variant); await this.reconcile();
       }
@@ -65,9 +66,9 @@ export class MatchmakingDO extends DurableObject<Env> {
     const now = Date.now();
     for (const e of [...this.state.entries]) {
       const ticket = await this.profile(e.profile).rankedTicket();
-      if (now - e.seen > 30000 || !ticket || ticket.room || ticket.key !== 'queue:' + this.state.variant) {
+      if (now - e.seen > 30000 || !ticket || ticket.room || ticket.key !== 'queue:' + this.state.variant || ticket.id !== e.ticket) {
         this.state.entries = this.state.entries.filter(x => x !== e);
-        if (!ticket?.room && ticket?.key === 'queue:' + this.state.variant) await this.profile(e.profile).releaseRanked(ticket.key);
+        if (!ticket?.room && ticket?.key === 'queue:' + this.state.variant) await this.profile(e.profile).releaseRanked(ticket.key, e.ticket);
       }
     }
     for (const item of [...this.state.pending]) {
@@ -76,11 +77,18 @@ export class MatchmakingDO extends DurableObject<Env> {
       if (!ok) { // An ordinary room won a random-ID collision: persist a fresh ID before retry.
         item.room = randomId(); await this.save(); continue;
       }
-      const assignments = await Promise.all(item.players.map(p => this.profile(p.profile).assignRanked('queue:' + item.variant, item.room)));
-      if (assignments.every(Boolean) && now - item.at < 45000) await room.activateRanked();
-      else {
-        await room.cancelRanked();
-        for (const p of item.players) { await this.profile(p.profile).releaseRanked(item.room); await this.profile(p.profile).releaseRanked('queue:' + item.variant); }
+      const lifecycle = await room.rankedLifecycle();
+      const resolution = pendingResolution(lifecycle, now - item.at);
+      if (resolution === 'assign') {
+        const assignments = await Promise.all(item.players.map(p => this.profile(p.profile).assignRanked('queue:' + item.variant, item.room, p.ticket)));
+        if (assignments.every(Boolean)) await room.activateRanked();
+        else await room.cancelRanked();
+      } else if (resolution === 'cancel') await room.cancelRanked();
+      // Never release reservations of an activated match, even after a lost activation ack.
+      const final = await room.rankedLifecycle();
+      if (final.cancelled) for (const p of item.players) {
+        await this.profile(p.profile).releaseRanked(item.room, p.ticket);
+        await this.profile(p.profile).releaseRanked('queue:' + item.variant, p.ticket);
       }
       this.state.pending = this.state.pending.filter(x => x !== item); await this.save();
     }
