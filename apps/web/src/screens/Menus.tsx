@@ -11,6 +11,7 @@ import {
 } from '@nardy/core';
 import { useT } from '../lib/i18n';
 import { Theme, useSettings, Speed } from '../lib/settings';
+import { loadSavedOnlineRoom, type SavedOnlineRoom } from '../controllers/remote';
 import { loadSavedAiGame } from '../controllers/local';
 import { motionSupported, needsPermission, requestMotionPermission } from '../lib/shake';
 import { unlockAudio } from '../lib/sound';
@@ -100,6 +101,27 @@ export function NameChip() {
 export function Home({ nav }: { nav: Nav }) {
   const T = useT();
   const saved = loadSavedAiGame();
+  const [online, setOnline] = useState<(SavedOnlineRoom & { waiting: boolean }) | null>(null);
+  useEffect(() => {
+    const room = loadSavedOnlineRoom();
+    if (!room) return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(room.id)}`);
+        if (!response.ok) return;
+        const info = await response.json();
+        if (!active) return;
+        setOnline(info.exists && info.status !== 'finished' ? { ...room, waiting: info.status === 'waiting' } : null);
+        if (!info.exists || info.status === 'finished') {
+          if (loadSavedOnlineRoom()?.id === room.id) localStorage.removeItem('nardy.online');
+        }
+      } catch { /* Retry on the next refresh. */ }
+    };
+    void refresh();
+    const timer = setInterval(refresh, 5000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
   return (
     <div className="screen home2">
       <header className="home2-head">
@@ -118,6 +140,18 @@ export function Home({ nav }: { nav: Nav }) {
           </span>
           <span className="grow">
             <b>{T.continueGame}</b>
+          </span>
+        </button>
+      )}
+      {online && (
+        <button className="resume-card" onClick={() => nav(`/r/${online.id}`)}>
+          <span className="resume-play" aria-hidden><Icon name="chevron" /></span>
+          <span className="grow">
+            <b>{online.waiting ? T.returnWaitingRoom : T.continueOnlineMatch}</b>
+            <span className="muted" style={{ display: 'block' }}>
+              {online.settings.variant === 'long' ? T.long : T.short} · {T.matchLength} {online.settings.matchLength} · {online.id}
+              {!online.waiting && <> · {online.names.filter(Boolean).join(' — ')}{online.score && <> · {online.score.join(':')}</>}</>}
+            </span>
           </span>
         </button>
       )}

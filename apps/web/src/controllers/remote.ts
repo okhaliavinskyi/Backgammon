@@ -12,6 +12,20 @@ export function getToken(roomId: string): string | undefined {
   }
 }
 
+export interface SavedOnlineRoom {
+  id: string;
+  settings: import('@nardy/core').RoomSettings;
+  names: (string | null)[];
+  score: [number, number] | null;
+}
+
+export function loadSavedOnlineRoom(): SavedOnlineRoom | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem('nardy.online') ?? 'null') as SavedOnlineRoom | null;
+    return saved && getToken(saved.id) && saved.settings && Array.isArray(saved.names) ? saved : null;
+  } catch { return null; }
+}
+
 /** Live game over WebSocket with the room Durable Object. */
 export class RemoteController implements Controller {
   private ws: WebSocket | null = null;
@@ -70,6 +84,17 @@ export class RemoteController implements Controller {
         });
         break;
       case 'state': {
+        try {
+          if (msg.room.status === 'finished') {
+            if (loadSavedOnlineRoom()?.id === this.roomId) localStorage.removeItem('nardy.online');
+          } else {
+            localStorage.setItem('nardy.online', JSON.stringify({
+              id: this.roomId, settings: msg.room.settings,
+              names: msg.room.players.map((p) => p?.name ?? null),
+              score: msg.match?.score ?? null,
+            } satisfies SavedOnlineRoom));
+          }
+        } catch { /* Storage may be disabled. */ }
         const patch: Partial<ReturnType<typeof useGame.getState>> = {
           room: msg.room,
           match: msg.match,
