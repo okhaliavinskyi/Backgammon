@@ -476,6 +476,8 @@ export class RoomDO extends DurableObject<Env> {
       const delay = s.settings.moveTimer * 1000;
       s.bank[prev] = Math.max(0, s.bank[prev] - Math.max(0, now - s.turnStartedAt - delay));
     }
+    // Bank is per game: a finished game refills both banks for the next one.
+    if (s.bank && (m.phase === 'gameover' || m.phase === 'matchover')) s.bank = [s.settings.bank * 1000, s.settings.bank * 1000];
     s.activeKey = key;
     s.turnStartedAt = act === null ? null : now;
     s.nextGameAt = m.phase === 'gameover' ? now + NEXT_GAME_DELAY_MS : null;
