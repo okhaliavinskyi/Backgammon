@@ -1,6 +1,6 @@
 # Optional verified-email profiles
 
-Status: implemented on `codex/email-accounts`, not deployed. Live sender setup awaits an owned domain. Existing production guest/ranked play is unchanged.
+Status: implemented; production domain and sender configured for `onlineboard.fun`. See rollout validation below.
 
 ## User flow
 
@@ -24,14 +24,11 @@ Names are initially carried from the browser that bound the profile; ordinary de
 
 ## Sending prerequisite
 
-Cloudflare account read-only discovery found no onboarded zones and no email sending domains. An existing domain may remain registered with Vercel (or another registrar), while its nameservers delegate DNS to Cloudflare. No domain was purchased and no external DNS was changed.
+The owned domain `onlineboard.fun` is active on Cloudflare Free, with nameservers `rosemary.ns.cloudflare.com` and `uriah.ns.cloudflare.com`. Native Email Sending is enabled for `mail.onlineboard.fun`; the service installed SPF, DKIM, bounce MX and a reject-policy DMARC record. Sender: `login@mail.onlineboard.fun`.
 
-After the owner supplies an owned domain:
+Worker custom domains: `onlineboard.fun` and `www.onlineboard.fun`. The original workers.dev address stays available. `AUTH_ORIGINS` is an explicit comma-separated allowlist of these three HTTPS origins. Links return to the origin where they were requested. `AUTH_ORIGIN`, when explicitly supplied (for example in local tests), overrides the list.
 
-1. Add it to Cloudflare and set the assigned nameservers at the registrar.
-2. Enable Email Sending for a dedicated subdomain, for example `mail.example.com`; inspect and install the service's SPF/DKIM records without replacing unrelated mail records.
-3. Verify sender/DNS status and set `EMAIL_FROM=login@mail.example.com` plus `AUTH_ORIGIN=https://nardy.o-khaliavinskyi.workers.dev` (or the chosen public app origin).
-4. Test delivery to a real mailbox controlled by the owner, then review/deploy separately. Never use production delivery to fake test addresses.
+Guest cookies and local settings are scoped to each host. There is no automatic redirect from the old host: an existing player must bind email on the original workers.dev host, then sign in on the new domain to recover that same progress. Opening the new domain alone creates an independent guest identity; no progress is deleted or implicitly merged.
 
 No configured sender means the UI reports email delivery unavailable; guest games remain available. The native `EMAIL` binding uses local simulation unless `remote=true` is explicitly set. No remote binding is used in tests.
 

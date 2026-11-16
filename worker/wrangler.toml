@@ -2,6 +2,15 @@ name = "nardy"
 main = "src/index.ts"
 compatibility_date = "2025-10-01"
 workers_dev = true
+routes = [
+  { pattern = "onlineboard.fun", custom_domain = true },
+  { pattern = "www.onlineboard.fun", custom_domain = true },
+]
+
+[vars]
+EMAIL_FROM = "login@mail.onlineboard.fun"
+# Keep email available on the original host so existing guests can save progress.
+AUTH_ORIGINS = "https://onlineboard.fun,https://www.onlineboard.fun,https://nardy.o-khaliavinskyi.workers.dev"
 
 [assets]
 directory = "../apps/web/dist"

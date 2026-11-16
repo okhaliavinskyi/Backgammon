@@ -29,7 +29,7 @@ jobs:
       - name: Integration tests against local worker
         working-directory: worker
         run: |
-          npx wrangler dev --port 8787 --ip 127.0.0.1 --var EMAIL_FROM:login@local.test --var AUTH_ORIGIN:http://127.0.0.1:8787 > wrangler.log 2>&1 &
+          npx wrangler dev --infer-origin-from-routes=false --port 8787 --ip 127.0.0.1 --var EMAIL_FROM:login@local.test --var AUTH_ORIGIN:http://127.0.0.1:8787 > wrangler.log 2>&1 &
           for i in $(seq 1 60); do curl -sf 127.0.0.1:8787/api/health && break; sleep 1; done
           NARDY_URL=http://127.0.0.1:8787 NARDY_MAIL_LOG="$PWD/wrangler.log" npm run test:integration
       - name: Worker log on failure

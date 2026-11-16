@@ -19,7 +19,12 @@ export async function handleAuth(
     path = url.pathname,
     cookie = request.headers.get('Cookie');
   const session = sessionCookie(cookie),
-    configured = !!env.EMAIL_FROM && env.AUTH_ORIGIN === url.origin;
+    configured =
+      !!env.EMAIL_FROM &&
+      (env.AUTH_ORIGIN ?? env.AUTH_ORIGINS ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .includes(url.origin);
   if (
     !(
       await env.CONNECT_LIMITER.limit({

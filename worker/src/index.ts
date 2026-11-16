@@ -15,6 +15,7 @@ export interface Env {
   EMAIL: SendEmail;
   EMAIL_FROM?: string;
   AUTH_ORIGIN?: string;
+  AUTH_ORIGINS?: string;
   MATCHMAKING: DurableObjectNamespace<MatchmakingDO>;
   PROFILE: DurableObjectNamespace<ProfileDO>;
   ROOM: DurableObjectNamespace<RoomDO>;
