@@ -8,6 +8,8 @@ const IMPL_SCREEN_DIR = process.env.IMPL_SCREEN_DIR || 'docs/design/impl-screens
 const BASE = process.env.NARDY_URL || 'http://127.0.0.1:8787';
 const settings = (name) => JSON.stringify({ state: { name, lang: 'ru', theme: 'wood', sound: false, speed: 'fast', autoRoll: false, autoConfirm: true, hints: true, shake: true, vibration: false }, version: 1 });
 const errors = [];
+// An anonymous profile lookup returning 401 is expected; all other console errors remain failures.
+const expectedGuestLookup = (message) => message.text().includes('401 (Unauthorized)') && message.location().url === BASE + '/api/profile';
 async function mk(b, name, opts = { viewport: { width: 1100, height: 900 } }) {
   const ctx = await b.newContext(opts);
   const p = await ctx.newPage();
@@ -158,7 +160,7 @@ const b=await chromium.launch({channel:'chrome'});let errors=[];let count=0;
 for(const [width,height] of [[360,780],[768,1024],[1440,900]])for(const theme of ['wood','minimal','malachite','night']){
  const ctx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
  await ctx.addInitScript(({theme})=>localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'QA',lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true,shake:true,vibration:false}})),{theme});
- const p=await ctx.newPage();p.on('pageerror',e=>errors.push(String(e)));p.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ const p=await ctx.newPage();p.on('pageerror',e=>errors.push(String(e)));p.on('console',m=>{if(m.type()==='error'&&!expectedGuestLookup(m))errors.push(m.text())});
  await p.goto('http://127.0.0.1:8787/play?mode=ai&variant=long&level=beginner');
  await p.waitForSelector('.status:has-text("Ваш ход")');await p.waitForSelector('.dice-tray:not(.single) .die-wrap');await p.waitForTimeout(150);
  const values=await p.evaluate(()=>{
@@ -184,7 +186,7 @@ function stacksBad(v){return v.stacks.some(s=>s.height>290.001)}
 async function verifyInput() {
 const b=await chromium.launch({channel:'chrome'}),c=await b.newContext({viewport:{width:360,height:780},isMobile:true,hasTouch:true});
 await c.addInitScript(()=>localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'Input',lang:'ru',theme:'wood',sound:false,speed:'instant',autoRoll:false,autoConfirm:false,hints:true,vibration:false}})));
-const p=await c.newPage();let errors=[];p.on('pageerror',e=>errors.push(String(e)));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
+const p=await c.newPage();let errors=[];p.on('pageerror',e=>errors.push(String(e)));p.on('console',msg=>{if(msg.type()==='error'&&!expectedGuestLookup(msg))errors.push(msg.text())});
 for(const mode of ['tap','drag']){
 await p.goto('http://127.0.0.1:8787/play?mode=ai&variant=short&level=beginner');await p.waitForSelector('.status:has-text("Ваш ход")');
 const roll=p.getByRole('button',{name:/^(🎲 )?Бросить$/,exact:true});if(await roll.count()){await roll.click()}
@@ -227,7 +229,7 @@ async function verifyStates() {
       localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{name:'QA',lang:'ru',theme,sound:false,speed:'instant',autoRoll:state==='double',autoConfirm:true,hints:true,shake:false,vibration:false}}));
       localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}));
     },{theme,m,state});
-    const p=await ctx.newPage();p.on('pageerror',e=>stateErrors.push(String(e)));p.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});
+    const p=await ctx.newPage();p.on('pageerror',e=>stateErrors.push(String(e)));p.on('console',msg=>{if(msg.type()==='error'&&!expectedGuestLookup(msg))stateErrors.push(msg.text())});
     if(state==='opponent'){await p.clock.install();await p.clock.pauseAt(new Date());}
     await p.goto(BASE+'/play?resume=1');await p.waitForSelector('.board-svg');
     if(state==='own'){
@@ -252,7 +254,7 @@ async function verifyStates() {
       // Restore the roll state to capture the countdown itself.
       await ctx.close();const shotCtx=await b.newContext({viewport:{width,height},isMobile:width===360,hasTouch:width===360});
       await shotCtx.addInitScript(({theme,m})=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme,sound:false,speed:'instant',autoRoll:true,autoConfirm:true,hints:true,vibration:false}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},{theme,m});
-      const shot=await shotCtx.newPage();shot.on('pageerror',e=>stateErrors.push(String(e)));shot.on('console',msg=>{if(msg.type()==='error')stateErrors.push(msg.text())});await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();
+      const shot=await shotCtx.newPage();shot.on('pageerror',e=>stateErrors.push(String(e)));shot.on('console',msg=>{if(msg.type()==='error'&&!expectedGuestLookup(msg))stateErrors.push(msg.text())});await shot.goto(BASE+'/play?resume=1');await shot.locator('button.btn.gold .countdown').waitFor();
       if(width===360){
         const geometry=await shot.evaluate(()=>{const a=document.querySelector('.action-bar').getBoundingClientRect(),r=document.querySelector('.board-wrap').getBoundingClientRect();return {actionsBottom:a.bottom,viewport:innerHeight,boardWidth:r.width,boardHeight:r.height}});
         if(geometry.actionsBottom>height-11.9||Math.abs(geometry.boardWidth-344)>.1||Math.abs(geometry.boardHeight-431.953125)>.1)throw Error('double actions clipped or board resized '+JSON.stringify(geometry));
@@ -286,7 +288,7 @@ async function reviewBoard(b) {
  const core=await import('file://'+path.join(dir,'core.mjs'));let i=0;let m=core.newMatch({variant:'short',matchLength:3,cube:false},()=>[6,1][i++%2]);
  m.board.pts[0].fill(0);m.board.pts[1].fill(0);m.board.pts[0][0]=5;m.board.pts[0][6]=5;m.board.pts[0][12]=5;m.board.pts[1][0]=15;
  const c=await b.newContext({viewport:{width:1100,height:900}});await c.addInitScript(m=>{localStorage.setItem('nardy.settings',JSON.stringify({version:1,state:{lang:'ru',theme:'wood',sound:false,speed:'instant',autoRoll:false,autoConfirm:false,hints:true,vibration:false}}));localStorage.setItem('nardy.aiGame',JSON.stringify({match:m,level:'beginner',names:['QA','Opponent']}))},m);
- const p=await c.newPage();p.on('pageerror',e=>errors.push('review board: '+e));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});await p.goto(BASE+'/play?resume=1');await p.waitForSelector('g.ck[data-loc="s23"]');
+ const p=await c.newPage();p.on('pageerror',e=>errors.push('review board: '+e));p.on('console',msg=>{if(msg.type()==='error'&&!expectedGuestLookup(msg))errors.push(msg.text())});await p.goto(BASE+'/play?resume=1');await p.waitForSelector('g.ck[data-loc="s23"]');
  async function drag(from,to){const a=await p.locator(`g.ck[data-color="0"][data-loc="${from}"]`).last().boundingBox(),svg=await p.locator('.board-svg').boundingBox();const vb=(await p.locator('.board-svg').getAttribute('viewBox')).split(' ').map(Number);const slot=Number(to.slice(1)),x=slot<=5?468+(5-slot)*64+32:slot<=11?24+(11-slot)*64+32:slot<=17?24+(slot-12)*64+32:468+(slot-18)*64+32,y=slot>=12?53:747;await p.mouse.move(a.x+a.width/2,a.y+a.height/2);await p.mouse.down();await p.mouse.move(svg.x+x*svg.width/vb[2],svg.y+y*svg.height/vb[3],{steps:10});await p.mouse.up();await p.waitForTimeout(50);}
  await drag('s23','s17');await drag('s11','s10');
  const top=await p.locator('g.ck[data-color="0"][data-loc="s17"]').last().locator('text').textContent({timeout:1000}).catch(()=>null);
@@ -310,7 +312,7 @@ async function verifyGhosts(b) {
  if(kind==='borne'){b.pts[0][0]=14;b.off[0]=1;}
  root.render(<BoardView board={b}  variant="short" viewer={0} mover={kind==='off'?1:0} theme="wood" moveMs={0} movable={new Set()} dimMovable={new Set()} selected="s23" targets={new Set(kind==='borne'?[]:[kind==='hit'?'s22':kind==='stack'?'s17':'off'])} lastMove={new Set()} hints={true} onLocClick={()=>{}} onDrop={()=>{}}/>);};window.reviewRender('hit');`;
  const code=require('child_process').execFileSync(path.resolve('node_modules/.bin/esbuild'),['--bundle','--format=iife','--platform=browser','--loader=tsx','--jsx=automatic','--tsconfig=apps/web/tsconfig.json','--sourcefile='+path.resolve('e2e/ghost-fixture.tsx')],{input:entry,encoding:'utf8',maxBuffer:8*1024*1024});
- const p=await b.newPage({viewport:{width:1100,height:900}});p.on('pageerror',e=>errors.push('ghost: '+e));p.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
+ const p=await b.newPage({viewport:{width:1100,height:900}});p.on('pageerror',e=>errors.push('ghost: '+e));p.on('console',msg=>{if(msg.type()==='error'&&!expectedGuestLookup(msg))errors.push(msg.text())});
  await p.setContent('<div id="root" style="width:1000px;height:800px"></div>');await p.addScriptTag({content:code});
  await p.locator('[data-hint="target"] circle').first().waitFor();
  if((await p.locator('svg').getAttribute('viewBox'))!=='0 0 876 800')throw Error('empty tray reserved space');

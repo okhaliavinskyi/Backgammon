@@ -1,3 +1,4 @@
+import { RankedScreen } from './screens/Ranked';
 import { ALL_COSMETICS } from '@nardy/core';
 import { useProgress, loadProgress } from './lib/progress';
 import { ProgressScreen } from './screens/Progress';
@@ -81,6 +82,7 @@ export function App() {
   const room = pathname.match(/^\/r\/([A-Za-z0-9]{6})$/);
   if (room) return <RoomScreen key={room[1]} id={room[1].toUpperCase()} nav={nav} />;
   switch (pathname) {
+    case '/ranked': return <RankedScreen nav={nav} />;
     case '/profile': return <ProgressScreen nav={nav} />;
     case '/privacy': return <LegalPage page="privacy" />;
     case '/terms': return <LegalPage page="terms" />;

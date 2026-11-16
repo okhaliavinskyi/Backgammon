@@ -10,6 +10,8 @@ import { Icon } from '../components/icons';
 
 interface Info {
   exists: boolean;
+  ranked?: boolean;
+  cancelled?: boolean;
   hasPassword?: boolean;
   seatsTaken?: number;
 }
@@ -36,7 +38,7 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   const savedName = useSettings((s) => s.name);
   const [nameInput, setNameInput] = useState('');
   const hasToken = !!getToken(id);
-  const noSeat = !hasToken && info?.seatsTaken === 2;
+  const noSeat = !info?.ranked && !hasToken && info?.seatsTaken === 2;
   const ready = !!savedName.trim() && info?.exists && !noSeat && (hasToken || !info.hasPassword || password !== null);
   const helloName = useSettings((s) => s.name) || T.you;
 
@@ -58,6 +60,8 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
   }, [ready, id, password, fatal]);
 
   const link = `${location.origin}/r/${id}`;
+
+  if (info?.cancelled || room?.ranked?.cancelled || fatal === 'match_cancelled' || fatal === 'not_invited') return <div className="screen form"><p>{useSettings.getState().lang === 'ru' ? 'Рейтинговый матч отменён или предназначен другим участникам. Elo не изменён, если матч не начался.' : 'Ranked match cancelled or reserved for other players. Unstarted matches do not affect Elo.'}</p><button className="btn primary" onClick={() => nav('/ranked')}>{useSettings.getState().lang === 'ru' ? 'К подбору' : 'Matchmaking'}</button></div>;
 
   if (fatal === 'rate_limited') return <div className="screen center"><p>{useSettings.getState().lang === 'ru' ? 'Слишком много попыток. Подождите минуту и попробуйте снова.' : 'Too many attempts. Wait a minute and try again.'}</p><button className="btn" onClick={() => nav('/online')}>{T.back}</button></div>;
 
@@ -104,6 +108,8 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
     );
   }
 
+if (!match && info.ranked) return <div className="screen form"><PageHead title={useSettings.getState().lang === 'ru' ? 'Соперник найден' : 'Opponent found'} onBack={() => nav('/')} /><p>{useSettings.getState().lang === 'ru' ? 'Ожидаем подключения обоих игроков. Если соперник не появится за минуту, матч отменится без изменения рейтинга.' : 'Waiting for both players. If your opponent does not connect within a minute, the match is cancelled without affecting ratings.'}</p></div>;
+
 if (!match) {
   const s = room?.settings;
   const share = async () => {
@@ -140,5 +146,5 @@ if (!match) {
 }
 
 
-  return <GameScreen onExit={() => nav('/online')} />;
+  return <GameScreen onExit={() => nav(info.ranked ? '/ranked' : '/online')} />;
 }

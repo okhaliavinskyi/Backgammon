@@ -61,11 +61,12 @@ async function audit(p, label, expectCounts) {
   const browser = await chromium.launch({ channel: 'chrome' });
   for (const locale of LOCALES)
     for (const w of WIDTHS) {
+      const testIp = `198.18.${10 + LOCALES.indexOf(locale)}.${10 + WIDTHS.indexOf(w)}`;
       // Each context needs its own room; sharing one starts a match on context #2.
       const created = await (
         await fetch(BASE + '/api/rooms', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'CF-Connecting-IP': testIp },
           body: JSON.stringify({
             settings: { variant: 'long', matchLength: 3, moveTimer: 30, bank: 600, cube: false, isPublic: false },
             password: '',
@@ -74,7 +75,7 @@ async function audit(p, label, expectCounts) {
         })
       ).json();
       if (!created.id) throw new Error('room creation failed: ' + JSON.stringify(created));
-      const ctx = await browser.newContext({ viewport: { width: w, height: 800 }, locale });
+      const ctx = await browser.newContext({ viewport: { width: w, height: 800 }, locale, extraHTTPHeaders: { 'CF-Connecting-IP': testIp } });
       const p = await ctx.newPage();
       await p.route('**/api/rooms', (r) =>
         r.request().method() === 'GET' ? r.fulfill({ json: { rooms: [0, 1, 2, 3, 4, 5].map(room) } }) : r.continue(),
@@ -82,7 +83,7 @@ async function audit(p, label, expectCounts) {
       const L = (r) => `${w} ${locale} ${r}`;
       await p.goto(BASE + '/');
       await p.locator('#root > *').waitFor();
-      await audit(p, L('/'), { '.menu-row': 4, '.menu-row.primary': 1, '.home2-head .icon-btn': 1 });
+      await audit(p, L('/'), { '.menu-row': 5, '.menu-row.primary': 1, '.home2-head .icon-btn': 1 });
       for (const r of ['/ai', '/local']) {
         await p.goto(BASE + r);
         await p.locator('#root > *').waitFor();

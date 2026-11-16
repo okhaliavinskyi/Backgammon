@@ -1,3 +1,4 @@
+import { initialRatings, type Rating } from './rating';
 /** Shared progression contract. Game rules remain in game.ts. */
 export type CosmeticKind = 'avatar' | 'frame' | 'dice' | 'theme';
 export interface Cosmetic { id: string; kind: CosmeticKind; price: number; ru: string; en: string; value: string }
@@ -25,6 +26,7 @@ export function levelForXp(xp: number): number { return Math.floor((-175 + Math.
 export interface ProgressStats { games: number; matches: number; wins: number; losses: number; qualified: number; qualifiedWins: number }
 export interface ProgressReward { event: string; xp: number; coins: number; limited: boolean; qualified: boolean; at: number }
 export interface ProgressProfile {
+  ratings: Record<'long' | 'short', Rating>;
   xp: number; coins: number; owned: string[]; equipped: Partial<Record<CosmeticKind, string>>;
   stats: Record<'long' | 'short', ProgressStats>; badges: string[]; lastReward: ProgressReward | null;
 }
@@ -33,7 +35,7 @@ export interface ProgressEvent {
   qualified: boolean; matchWon: boolean | null; at: number;
 }
 export const newStats = (): ProgressStats => ({ games: 0, matches: 0, wins: 0, losses: 0, qualified: 0, qualifiedWins: 0 });
-export const newProfile = (): ProgressProfile => ({ xp: 0, coins: 0, owned: [], equipped: {}, stats: { long: newStats(), short: newStats() }, badges: [], lastReward: null });
+export const newProfile = (): ProgressProfile => ({ ratings: initialRatings(), xp: 0, coins: 0, owned: [], equipped: {}, stats: { long: newStats(), short: newStats() }, badges: [], lastReward: null });
 export const PROFILE_COOKIE = 'nardy_guest';
 export function profileToken(cookie: string | null): string | null {
   const value = cookie?.split(';').map(s => s.trim()).find(s => s.startsWith(PROFILE_COOKIE + '='))?.slice(PROFILE_COOKIE.length + 1);

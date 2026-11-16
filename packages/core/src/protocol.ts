@@ -50,6 +50,7 @@ export function sanitizeChat(text: unknown): string {
 }
 
 export interface PlayerInfo {
+  rating?: import('./rating').Rating;
   cosmetics?: Partial<Record<import('./progress').CosmeticKind, string>>;
   name: string;
   connected: boolean;
@@ -72,6 +73,7 @@ export interface Clocks {
 }
 
 export interface RoomView {
+  ranked?: import('./rating').RankedView;
   progressEvent?: string;
   progressEligible?: boolean;
   id: string;

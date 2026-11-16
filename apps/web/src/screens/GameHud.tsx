@@ -4,6 +4,8 @@ import { Icon } from '../components/icons';
 
 export interface StripProps {
   name: string;
+  rank?: string;
+  rankTitle?: string;
   offline: boolean;
   mine: boolean;
   active: boolean;
@@ -34,7 +36,8 @@ export function PlayerStrip(p: StripProps) {
           <span className="pmeta" data-pips={p.mine ? 'me' : 'opp'}>
             {p.pips} {T.pips} · {p.off}/15
           </span>
-          {diff && <span className={'pdiff' + (p.pipDiff > 0 ? ' ahead' : '')}> · {diff}</span>}
+          {p.rank && <span title={p.rankTitle}> · {p.rank}</span>}
+          {!p.rank && diff && <span className={'pdiff' + (p.pipDiff > 0 ? ' ahead' : '')}> · {diff}</span>}
         </div>
       </div>
       <span className="strip-score" title={T.score}>

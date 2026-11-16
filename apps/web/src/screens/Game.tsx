@@ -1,4 +1,4 @@
-import { ALL_COSMETICS } from '@nardy/core';
+import { ALL_COSMETICS, ratingLabel } from '@nardy/core';
 import { useProgress } from '../lib/progress';
 import { GameProgress, PlayerAvatar } from './Progress';
 import type { Theme } from '../lib/settings';
@@ -435,7 +435,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
     const bankLeft = clocks?.bank ? clocks.bank[c] - (running ? Math.max(0, elapsed - clocks.moveTimerMs) : 0) : null;
     const moveLeft = clocks?.moveTimerMs ? Math.max(0, clocks.moveTimerMs - elapsed) : null;
     const mine = c === viewer;
-    return <PlayerStrip key={c} name={p?.name ?? '—'} offline={!!p && !p.connected} mine={mine} active={act === c} statusText={statusText}
+    return <PlayerStrip key={c} name={p?.name ?? '—'} rank={p?.rating ? (p.rating.matches < 10 ? `${p.rating.matches}/10` : `${p.rating.elo} Elo`) : undefined} rankTitle={p?.rating ? ratingLabel(p.rating, st.lang === 'ru') : undefined} offline={!!p && !p.connected} mine={mine} active={act === c} statusText={statusText}
       pips={pipCount(board, c)} pipDiff={pipCount(board, other(c)) - pipCount(board, c)} off={board.off[c]} score={m.score[c]}
       cube={m.cube.owner === c && m.settings.cube ? <Cube value={m.cube.value} /> : null}
       pieceChip={<><PlayerAvatar equipped={p?.cosmetics} /><span className={'pchip ' + (c === 0 ? 'w' : 'b')} data-theme-chip={cosmeticTheme ?? st.theme} /></>}
@@ -457,7 +457,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
   return (
     <div className={'game theme-' + st.theme + (compact ? ' phone-game' : '') + (wide ? ' desk2' : '') + (wide && g.mode === 'online' ? ' has-chat' : '')}>
       <header className="game-top">
-        <button className="icon-btn" onClick={onExit} aria-label={T.toMenu}>
+        <button className="icon-btn" onClick={() => { if (g.room?.ranked && m.phase !== 'matchover') setConfirmResign(true); else onExit(); }} aria-label={T.toMenu}>
           {hud ? <Icon name="back" /> : '←'}
         </button>
         {!wide && <div className="score">
@@ -603,6 +603,8 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
               <p className="res-score">
                 {m.score[0]} : {m.score[1]}
               </p>
+              {g.room?.ranked && m.phase === 'matchover' && <p className="ranked-result">{g.room.ranked.settled ? `${st.lang === 'ru' ? 'Рейтинг' : 'Rating'}: ${g.room.ranked.ratings[viewer].elo} → ${g.room.ranked.ratings[viewer].elo + (g.room.ranked.changes?.[viewer] ?? 0)} (${(g.room.ranked.changes?.[viewer] ?? 0) >= 0 ? '+' : ''}${g.room.ranked.changes?.[viewer] ?? 0})` : (st.lang === 'ru' ? 'Сохраняем рейтинг…' : 'Saving rating…')}</p>}
+              {g.room?.ranked?.settled && progressProfile && m.phase === 'matchover' && <p>{ratingLabel(progressProfile.ratings[m.settings.variant], st.lang === 'ru')}</p>}
               {g.mode === 'online' && <GameProgress event={g.room?.progressEvent ?? ''} eligible={g.room?.progressEligible} />}
               {m.phase === 'gameover' && (
                 <>
@@ -620,7 +622,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
               )}
               {m.phase === 'matchover' && (
                 <div className="row">
-                  {g.mode === 'online' && g.room?.rematch[viewer] ? (
+                  {g.room?.ranked ? <button className="btn primary" disabled={!g.room.ranked.settled} onClick={onExit}>{st.lang === 'ru' ? 'Найти следующего соперника' : 'Find next opponent'}</button> : g.mode === 'online' && g.room?.rematch[viewer] ? (
                     <span className="muted">{T.rematchWaiting}</span>
                   ) : (
                     <button className="btn primary" onClick={() => ctrl.rematch()}>
@@ -734,7 +736,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
       {confirmResign && (
         <div className="modal-layer">
           <div className="modal">
-            <p>{T.resignConfirm}</p>
+            <p>{g.room?.ranked ? (st.lang === 'ru' ? 'Сдаться в рейтинговом матче? Это засчитается как поражение и изменит Elo.' : 'Resign this ranked match? This counts as a loss and changes your Elo.') : T.resignConfirm}</p>
             <div className="row">
               <button
                 className="btn primary"

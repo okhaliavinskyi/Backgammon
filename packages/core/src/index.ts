@@ -4,3 +4,4 @@ export * from './game';
 export * from './ai';
 export * from './protocol';
 export * from './progress';
+export * from './rating';
