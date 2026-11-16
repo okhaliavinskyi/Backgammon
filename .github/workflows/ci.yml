@@ -24,6 +24,8 @@ jobs:
       - name: Validate worker bundle
         run: npx wrangler deploy --dry-run --outdir .wrangler/dry
         working-directory: worker
+      - name: Install browser for guest progression tests
+        run: npx playwright install --with-deps chromium
       - name: Integration tests against local worker
         working-directory: worker
         run: |

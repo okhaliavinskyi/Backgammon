@@ -1,3 +1,4 @@
+import { PrivacyNotice } from './Legal';
 import { useEffect, useRef, useState } from 'react';
 import { RemoteController, getToken } from '../controllers/remote';
 import { useGame } from '../controllers/store';
@@ -11,8 +12,6 @@ interface Info {
   exists: boolean;
   hasPassword?: boolean;
   seatsTaken?: number;
-  seatsOffline?: number;
-  offlineName?: string | null;
 }
 
 /** /r/:id — password prompt, waiting room with share link, then the game. */
@@ -34,12 +33,12 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
       .catch(() => setInfo({ exists: false }));
   }, [id]);
 
+  const savedName = useSettings((s) => s.name);
+  const [nameInput, setNameInput] = useState('');
   const hasToken = !!getToken(id);
-  const full = !hasToken && info?.seatsTaken === 2;
-  const noSeat = full && !info?.seatsOffline;
-  const rejoin = full && !!info?.seatsOffline;
-  const ready = info?.exists && !noSeat && (hasToken || (!info.hasPassword && !rejoin) || password !== null);
-  const helloName = useSettings((s) => s.name) || (rejoin && info?.offlineName) || localStorage.getItem('nardy.name.' + id) || T.you;
+  const noSeat = !hasToken && info?.seatsTaken === 2;
+  const ready = !!savedName.trim() && info?.exists && !noSeat && (hasToken || !info.hasPassword || password !== null);
+  const helloName = useSettings((s) => s.name) || T.you;
 
   useEffect(() => {
     if (!ready || fatal) return;
@@ -60,6 +59,8 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
 
   const link = `${location.origin}/r/${id}`;
 
+  if (fatal === 'rate_limited') return <div className="screen center"><p>{useSettings.getState().lang === 'ru' ? 'Слишком много попыток. Подождите минуту и попробуйте снова.' : 'Too many attempts. Wait a minute and try again.'}</p><button className="btn" onClick={() => nav('/online')}>{T.back}</button></div>;
+
   if (info === null) return <div className="screen center">{T.connecting}</div>;
   if (!info.exists || noSeat || fatal === 'room_full' || fatal === 'room_expired' || fatal === 'room_gone') {
     return (
@@ -72,19 +73,14 @@ export function RoomScreen({ id, nav }: { id: string; nav: Nav }) {
       </div>
     );
   }
-  if (rejoin && (!ready || fatal === 'bad_password')) {
-    return <div className="screen form">
-      <PageHead title={<>{T.rejoinAs} {info.offlineName}</>} onBack={() => nav('/online')} />
-      {fatal === 'bad_password' && <p className="error">{T.badPassword}</p>}
-      <form className="card pw-form" onSubmit={(e) => { e.preventDefault(); localStorage.setItem('nardy.name.' + id, helloName); setFatal(null); setPassword(info.hasPassword ? pwInput : ''); }}>
-        {info.hasPassword && <label className="field">
-          <span>{T.password}</span>
-          <input type="password" autoFocus value={pwInput} onChange={(e) => setPwInput(e.target.value)} />
-        </label>}
-        <button className="btn primary big">{T.rejoin}</button>
-      </form>
-    </div>;
-  }
+  if (!savedName.trim()) return <div className="screen form">
+    <PageHead title={T.yourName} onBack={() => nav('/online')} />
+    <PrivacyNotice />
+    <form className="card pw-form" onSubmit={e => { e.preventDefault(); if (nameInput.trim()) useSettings.getState().set({ name: nameInput.trim().slice(0, 20) }); }}>
+      <label className="field"><span>{T.yourName}</span><input autoFocus maxLength={20} value={nameInput} onChange={e => setNameInput(e.target.value)} required /></label>
+      <button className="btn primary big" disabled={!nameInput.trim()}>{T.join}</button>
+    </form>
+  </div>;
   if (!ready || fatal === 'bad_password') {
     return (
       <div className="screen form">
@@ -120,6 +116,7 @@ if (!match) {
   return (
     <div className="screen form wait2">
       <PageHead title={T.waitingOpponent} onBack={() => nav('/online')} />
+      <PrivacyNotice />
       <div className="code-card">
         <span className="muted">{T.roomCode}</span>
         <p className="code big-code" aria-label={id}>{[...id].map((ch, i) => <span key={i}>{ch}</span>)}</p>

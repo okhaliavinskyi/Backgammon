@@ -15,7 +15,7 @@
 | `packages/core` | Движок правил, генерация ходов, матч, ИИ, протокол — общий для клиента и сервера |
 | `apps/web` | Клиент: React 19 + Vite, Zustand |
 | `worker` | Cloudflare Worker + Durable Objects (`RoomDO`, `LobbyDO`) |
-| `docs/` | [SPEC](docs/SPEC.md) · [PLAN](docs/PLAN.md) · [DEPLOY](docs/DEPLOY.md) · [REVIEW](docs/REVIEW.md) |
+| `docs/` | [SPEC](docs/SPEC.md) · [PLAN](docs/PLAN.md) · [DEPLOY](docs/DEPLOY.md) · [REVIEW](docs/REVIEW.md) · [Геймификация V1](docs/GAMIFICATION-V1.md) · [Гостевой профиль и регистрация](docs/GAMIFICATION-IDENTITY.md) |
 | `e2e/` | Браузерный e2e на Playwright |
 | `.github/workflows/` | CI (`ci.yml`) и автодеплой в Cloudflare при push в `main` (`deploy.yml`) |
 

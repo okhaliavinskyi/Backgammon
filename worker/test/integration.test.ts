@@ -180,31 +180,32 @@ const reply = (c: Client) => c.wait((m) => m.t === 'welcome' || m.t === 'error')
 
 it('both online: no token → room_full, info says 0 offline', async () => {
   const { id } = await fullRoom('pw');
-  expect(await info(id)).toMatchObject({ seatsTaken: 2, seatsOffline: 0, offlineName: null });
+  expect(await info(id)).toEqual({ exists: true, id, hasPassword: true, seatsTaken: 2, status: 'playing' });
   const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Eve', password: 'pw' });
   expect(await reply(c)).toMatchObject({ t: 'error', code: 'room_full' });
 });
 
-it('offline seat: no token + right password → takes the seat, old token dead', async () => {
-  const { id, b, wb } = await fullRoom('pw');
+it('offline seat requires its token and never exposes chat to a new visitor', async () => {
+  const { id, a, b, wb } = await fullRoom('pw');
+  a.send({ t: 'chat', text: 'private history' });
+  await b.wait((m) => m.t === 'chat');
   b.ws.close(); await settle();
-  const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Bob2', password: 'pw' });
-  const w = await reply(c);
-  expect(w).toMatchObject({ t: 'welcome', you: 1 });
-  expect((w as Extract<ServerMsg, { t: 'welcome' }>).token).not.toBe(wb.token);
-  c.ws.close(); await settle();
-  // A live old token would be welcomed regardless of password; bad_password proves it no longer matches.
-  const old = new Client(); await old.open(id); old.send({ t: 'hello', name: 'Bob', token: wb.token, password: 'nope' });
-  expect(await reply(old)).toMatchObject({ t: 'error', code: 'bad_password' });
+  const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Eve', password: 'pw' });
+  expect(await reply(c)).toMatchObject({ t: 'error', code: 'room_full' });
+  expect(c.msgs.some((m) => m.t === 'state' || m.t === 'chat')).toBe(false);
+  const owner = new Client(); await owner.open(id); owner.send({ t: 'hello', name: 'Bob', token: wb.token });
+  expect(await reply(owner)).toMatchObject({ t: 'welcome', you: 1, token: wb.token });
+  const state = await owner.wait((m) => m.t === 'state');
+  expect(state.t === 'state' && state.chat?.[0].text).toBe('private history');
 });
 
 it('offline seat: info names it; wrong password → bad_password, seat untouched', async () => {
   const { id, b } = await fullRoom('pw');
   b.ws.close(); await settle();
-  expect(await info(id)).toMatchObject({ seatsOffline: 1, offlineName: 'Bob' });
+  expect(await info(id)).not.toHaveProperty('offlineName');
   const c = new Client(); await c.open(id); c.send({ t: 'hello', name: 'Eve', password: 'x' });
   expect(await reply(c)).toMatchObject({ t: 'error', code: 'bad_password' });
-  expect(await info(id)).toMatchObject({ seatsOffline: 1, offlineName: 'Bob' });
+  expect(await info(id)).not.toHaveProperty('offlineName');
 });
 
   it('a second hello on the same socket cannot take the other seat', async () => {
@@ -220,4 +221,31 @@ it('offline seat: info names it; wrong password → bad_password, seat untouched
     const info = await (await fetch(`${process.env.NARDY_URL ?? 'http://127.0.0.1:8787'}/api/rooms/${id}`)).json();
     expect(info).toMatchObject({ seatsTaken: 1, status: 'waiting' });
   });
+});
+
+
+describe('privacy request boundaries', () => {
+  const reply = (c: Client) => c.wait((m) => m.t === 'welcome' || m.t === 'error');
+  const settle = () => new Promise((r) => setTimeout(r, 100));
+  it('rejects cross-origin requests, oversized bodies and non-object JSON', async () => {
+    expect((await fetch(`${BASE}/api/rooms`, { method: 'POST', headers: { Origin: 'https://evil.example' }, body: '{}' })).status).toBe(403);
+    expect((await fetch(`${BASE}/api/rooms`, { method: 'POST', body: 'x'.repeat(4097) })).status).toBe(413);
+    for (const body of ['null', '[]', '42']) {
+      expect((await fetch(`${BASE}/api/rooms`, { method: 'POST', body })).status).toBe(400);
+    }
+  });
+  it('bounds repeated password guesses across connections and accepts malformed messages safely', async () => {
+    const id = await createRoom({ isPublic: false }, 'secret');
+    for (let i = 0; i < 20; i++) {
+      const c = new Client(); await c.open(id);
+      c.send({ t: 'hello', name: 'Guess', password: 'wrong' });
+      expect(await reply(c)).toMatchObject({ code: 'bad_password' });
+      await settle();
+    }
+    const c = new Client(); await c.open(id);
+    c.send(null);
+    expect(await c.wait((m) => m.t === 'error')).toMatchObject({ code: 'bad_message' });
+    c.send({ t: 'hello', name: 'Guess', password: 'secret' });
+    expect(await reply(c)).toMatchObject({ code: 'rate_limited' });
+  }, 20_000);
 });

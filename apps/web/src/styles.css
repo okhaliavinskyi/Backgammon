@@ -1346,3 +1346,13 @@ input:not([type='checkbox']) {
 }
 :root[data-theme='night'] .die.dark .pip { fill: #bdb6aa; }
 :root[data-theme='night'] .pip.one { fill: #633c32; }
+
+.legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; padding: 1rem 0; font-size: .85rem; }
+.legal-links a, .legal-page a, .privacy-notice a { color: inherit; text-decoration: underline; display: inline-flex; align-items: center; min-height: 44px; }
+.privacy-notice { font-size: .85rem; line-height: 1.5; }
+.legal-page { max-width: 760px; margin: auto; padding: 24px; height: auto; overflow: visible; line-height: 1.6; }
+.legal-page h1 { font-size: 1.8rem; }
+.legal-page h2 { margin-top: 1.5rem; font-size: 1.2rem; }
+.legal-page dd { margin: 0 0 1rem; overflow-wrap: anywhere; }
+.privacy-actions { display: flex; flex-direction: column; align-items: stretch; gap: .75rem; margin: 1.5rem 0; }
+.privacy-actions .btn { white-space: normal; }

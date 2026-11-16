@@ -1,3 +1,6 @@
+import { ALL_COSMETICS } from '@nardy/core';
+import { useProgress, loadProgress } from './lib/progress';
+import { ProgressScreen } from './screens/Progress';
 import { useEffect, useMemo, useState } from 'react';
 import type { AiLevel, Variant } from '@nardy/core';
 import { LocalController, clearSavedAiGame, loadSavedAiGame } from './controllers/local';
@@ -6,6 +9,7 @@ import { useT } from './lib/i18n';
 import { useSettings } from './lib/settings';
 import { GameScreen } from './screens/Game';
 import { CreateRoom, GameSetup, Home, Online, SettingsScreen } from './screens/Menus';
+import { LegalPage } from './screens/Legal';
 import { RoomScreen } from './screens/Room';
 
 function usePath(): [string, (p: string) => void] {
@@ -57,12 +61,17 @@ function LocalGame({ query, nav }: { query: URLSearchParams; nav: (p: string) =>
 
 export function App() {
   const [path, nav] = usePath();
-  const theme = useSettings((s) => s.theme);
+  const baseTheme = useSettings((s) => s.theme);
+  const equipped = useProgress(s => s.profile?.equipped);
+  const theme = ALL_COSMETICS.find(x => x.id === equipped?.theme)?.value ?? baseTheme;
+  const dice = ALL_COSMETICS.find(x => x.id === equipped?.dice)?.value ?? '';
+  useEffect(() => { void loadProgress(); }, []);
   const lang = useSettings((s) => s.lang);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.documentElement.lang = lang;
-  }, [theme, lang]);
+    document.documentElement.dataset.dice = dice;
+  }, [theme, lang, dice]);
 
   const [pathname, search] = useMemo(() => {
     const [p, q = ''] = path.split('?');
@@ -72,6 +81,10 @@ export function App() {
   const room = pathname.match(/^\/r\/([A-Za-z0-9]{6})$/);
   if (room) return <RoomScreen key={room[1]} id={room[1].toUpperCase()} nav={nav} />;
   switch (pathname) {
+    case '/profile': return <ProgressScreen nav={nav} />;
+    case '/privacy': return <LegalPage page="privacy" />;
+    case '/terms': return <LegalPage page="terms" />;
+    case '/legal': return <LegalPage page="legal" />;
     case '/online':
       return <Online nav={nav} />;
     case '/create':

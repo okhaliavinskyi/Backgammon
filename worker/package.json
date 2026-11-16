@@ -7,7 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit -p .",
-    "test:integration": "vitest run"
+    "test:integration": "vitest run --no-file-parallelism"
   },
   "dependencies": {
     "@nardy/core": "1.0.0"

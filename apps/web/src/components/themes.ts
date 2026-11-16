@@ -26,7 +26,7 @@ export interface BoardTheme {
   target: string;
 }
 
-export const THEMES: Record<Theme, BoardTheme> = {
+const BASE_THEMES: Record<Exclude<Theme, 'amber' | 'slate'>, BoardTheme> = {
   night: {
     frame: '#161718', frameDark: '#0b0c0d',
     field: '#202224', fieldTexture: 'none',
@@ -98,4 +98,10 @@ export const THEMES: Record<Theme, BoardTheme> = {
     highlight: '#ffe08a',
     target: '#9effc8',
   },
+};
+
+export const THEMES: Record<Theme, BoardTheme> = {
+  ...BASE_THEMES,
+  amber: { ...BASE_THEMES.wood, frame: '#69401d', frameDark: '#32200e', field: '#dfb86c', pointA: '#7d391b', pointB: '#fff0be', inlay: '#f3cc76', white: { base: '#fff3c9', light: '#fffbea', dark: '#c3a05b', ring: '#8e672d' } },
+  slate: { ...BASE_THEMES.minimal, frame: '#273646', frameDark: '#14202d', field: '#596f7b', pointA: '#263644', pointB: '#bdced0', number: '#f3f7fa', black: { base: '#24313a', light: '#4d6470', dark: '#101b23', ring: '#93aab3' } },
 };

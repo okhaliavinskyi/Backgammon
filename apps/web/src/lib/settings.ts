@@ -2,13 +2,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Lang } from './i18n';
 
-export type Theme = 'wood' | 'minimal' | 'malachite' | 'night';
+export type Theme = 'wood' | 'minimal' | 'malachite' | 'night' | 'amber' | 'slate';
 export type Speed = 'slow' | 'normal' | 'fast' | 'instant';
 
 export interface Settings {
   name: string;
   lang: Lang;
   theme: Theme;
+  hideProgress: boolean;
   sound: boolean;
   speed: Speed;
   autoRoll: boolean;
@@ -28,6 +29,7 @@ export const useSettings = create<Settings>()(
   persist(
     (set) => ({
       name: '',
+      hideProgress: false,
       lang: initialLang(),
       theme: 'wood',
       sound: true,
