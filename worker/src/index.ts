@@ -3,10 +3,12 @@ import { LobbyDO } from './lobby';
 import { RoomDO } from './room';
 import { ROOM_ID_RE, json, randomId, readJsonObject, BodyError } from './util';
 
+import { MatchmakingDO } from './matchmaking';
 import { ProfileDO } from './profile';
-export { LobbyDO, RoomDO, ProfileDO };
+export { LobbyDO, RoomDO, ProfileDO, MatchmakingDO };
 
 export interface Env {
+  MATCHMAKING: DurableObjectNamespace<MatchmakingDO>;
   PROFILE: DurableObjectNamespace<ProfileDO>;
   ROOM: DurableObjectNamespace<RoomDO>;
   LOBBY: DurableObjectNamespace<LobbyDO>;
@@ -43,6 +45,25 @@ export default {
     if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
     const key = request.headers.get('CF-Connecting-IP') ?? 'local';
 
+    const rankedRoute = path.match(/^\/api\/ranked\/(long|short)$/);
+    if (rankedRoute) {
+      if (!['GET','POST','DELETE'].includes(request.method)) return json({ error: 'method' }, 405);
+      if (!(await env.CONNECT_LIMITER.limit({ key: 'ranked:' + key })).success) return json({ error: 'rate_limited' }, 429);
+      const token = profileToken(request.headers.get('Cookie'));
+      if (!token) return json({ error: 'no_profile' }, 401);
+      const profile = env.PROFILE.get(env.PROFILE.idFromName(token));
+      if (!await profile.getProfile()) return json({ error: 'no_profile' }, 401);
+      let name = '';
+      if (request.method === 'POST') {
+        try { name = sanitizeName((await readJsonObject(request, 256)).name); }
+        catch (e) { return json({ error: 'bad_json' }, e instanceof BodyError ? e.status : 400); }
+      }
+      const variant = rankedRoute[1] as 'long' | 'short';
+      try {
+        return json(await env.MATCHMAKING.get(env.MATCHMAKING.idFromName(variant)).request(token, variant, request.method === 'POST' ? 'join' : request.method === 'DELETE' ? 'cancel' : 'status', name));
+      } catch { return json({ error: 'matchmaking_unavailable' }, 503); }
+    }
+
     if (path === '/api/profile/export' || (path === '/api/profile' && request.method === 'DELETE')) {
       if (!(await env.CONNECT_LIMITER.limit({ key })).success) return json({ error: 'rate_limited' }, 429);
       const token = profileToken(request.headers.get('Cookie'));
@@ -70,7 +91,8 @@ export default {
       if (!(await env.CONNECT_LIMITER.limit({ key })).success) return json({ error: 'rate_limited' }, 429);
       let token = profileToken(request.headers.get('Cookie'));
       if (path === '/api/profile' && request.method === 'POST') {
-        if (!(await env.CREATE_LIMITER.limit({ key: 'profile:' + key })).success) return json({ error: 'rate_limited' }, 429);
+        const existing = token ? await env.PROFILE.get(env.PROFILE.idFromName(token)).getProfile() : null;
+        if (!existing && !(await env.CREATE_LIMITER.limit({ key: 'profile:' + key })).success) return json({ error: 'rate_limited' }, 429);
         if (!token) token = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
         const profile = await env.PROFILE.get(env.PROFILE.idFromName(token)).init(token);
         return new Response(JSON.stringify({ profile }), { headers: {

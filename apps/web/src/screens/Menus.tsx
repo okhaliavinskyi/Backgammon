@@ -158,6 +158,7 @@ export function Home({ nav }: { nav: Nav }) {
         </button>
       )}
       <div className="eyebrow">{T.newGame}</div>
+      <button className="menu-row" onClick={() => nav('/ranked')}>{useSettings.getState().lang === 'ru' ? 'Рейтинговая игра' : 'Ranked game'}</button>
       <button className="menu-row primary" onClick={() => (unlockAudio(), nav('/online'))}>
         <Icon name="globe" size={26} />
         <span className="grow">

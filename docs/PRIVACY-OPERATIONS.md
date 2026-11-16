@@ -71,3 +71,7 @@ Run one local Wrangler with a separate `--persist-to` directory. Use `NARDY_URL`
 - `NARDY_URL=http://127.0.0.1:8791 REJOIN_ONLY=1 node e2e/online.e2e.cjs`.
 
 Additional primary sources: https://developers.cloudflare.com/workers/observability/logs/workers-logs/ and https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/ .
+
+## Ranked matchmaking (V1-B)
+
+Guest ratings, placement counts and per-match Elo changes use the existing profile retention and export/deletion mechanisms. Matchmaking stores the guest credential internally for reservation, a display name, an Elo snapshot and queue timestamps; credentials are never returned to other players. One queue object is used per game variant. Waiting entries expire after 30 seconds without heartbeat; provisional profile tickets expire after 45 seconds. A committed assignment remains reserved until the room starts and finishes, or the one-minute start deadline cancels it. Active rated rooms use the normal room lifecycle, retaining undelivered rating events for retry rather than deleting a pending result. Ratings and rating history are included in profile exports; internal reservation keys are excluded. Deleting a profile does not erase the opponent's independent result or already delivered room state.

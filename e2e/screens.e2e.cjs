@@ -82,7 +82,7 @@ async function audit(p, label, expectCounts) {
       const L = (r) => `${w} ${locale} ${r}`;
       await p.goto(BASE + '/');
       await p.locator('#root > *').waitFor();
-      await audit(p, L('/'), { '.menu-row': 4, '.menu-row.primary': 1, '.home2-head .icon-btn': 1 });
+      await audit(p, L('/'), { '.menu-row': 5, '.menu-row.primary': 1, '.home2-head .icon-btn': 1 });
       for (const r of ['/ai', '/local']) {
         await p.goto(BASE + r);
         await p.locator('#root > *').waitFor();

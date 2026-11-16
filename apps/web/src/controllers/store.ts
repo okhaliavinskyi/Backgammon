@@ -5,6 +5,7 @@ export type Mode = 'ai' | 'local' | 'online';
 export type Conn = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
 export interface PlayerSlot {
+  rating?: import('@nardy/core').Rating;
   cosmetics?: Partial<Record<import('@nardy/core').CosmeticKind, string>>;
   name: string;
   connected: boolean;

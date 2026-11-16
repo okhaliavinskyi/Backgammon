@@ -1,3 +1,4 @@
+import { eloChange, type Rating, type RatingEvent, type Variant } from '@nardy/core';
 import { DurableObject } from 'cloudflare:workers';
 import {
   Action,
@@ -40,7 +41,13 @@ interface Seat {
   disconnectedAt: number | null;
 }
 
+interface RankedState {
+  profiles: [string, string]; ratings: [Rating, Rating]; ready: boolean; joinBy: number; cancelled: boolean;
+  results?: [RatingEvent, RatingEvent]; delivered: [boolean, boolean];
+}
+
 interface Persisted {
+  ranked?: RankedState;
   id: string;
   settings: RoomSettings;
   salt: string;
@@ -70,6 +77,8 @@ interface Attachment {
 
 export interface RoomInfo {
   exists: boolean;
+  ranked?: boolean;
+  cancelled?: boolean;
   id?: string;
   hasPassword?: boolean;
   seatsTaken?: number;
@@ -121,6 +130,39 @@ export class RoomDO extends DurableObject<Env> {
     return true;
   }
 
+  async initRanked(id: string, variant: Variant, players: [{ profile: string; name: string; rating: Rating }, { profile: string; name: string; rating: Rating }]): Promise<boolean> {
+    return this.enqueueValue(async () => {
+      if (this.s) return !!this.s.ranked && this.s.ranked.profiles.every((p,c) => p === players[c].profile);
+      if (!await this.init(id, { variant, matchLength: 3, moveTimer: 15, bank: 300, cube: variant === 'short', isPublic: false }, null, players[0].name)) return false;
+      this.s!.ranked = { profiles: [players[0].profile, players[1].profile], ratings: [players[0].rating, players[1].rating], ready: false, joinBy: Date.now() + 60000, cancelled: false, delivered: [false,false] };
+      this.s!.seats = players.map(p => ({ name: p.name, profile: p.profile, token: randomToken(), disconnectedAt: Date.now() })) as [Seat,Seat];
+      await this.save(); await this.scheduleAlarm(); return true;
+    });
+  }
+  async activateRanked(): Promise<void> {
+    return this.enqueue(async () => {
+      if (!this.s?.ranked || this.s.ranked.cancelled) return;
+      this.s.ranked.ready = true;
+      if (!this.s.match && this.s.seats.every(st => st?.disconnectedAt === null)) await this.startMatch();
+      await this.persistAndBroadcast();
+    });
+  }
+  async cancelRanked(): Promise<void> { return this.enqueue(() => this.abortRanked()); }
+  private async abortRanked(): Promise<void> {
+    const s = this.s; if (!s?.ranked || s.match) return;
+    s.ranked.cancelled = true; await this.save();
+    for (const c of [0,1] as const) {
+      if (s.ranked.delivered[c]) continue;
+      await this.profile(s.ranked.profiles[c]).releaseRanked(s.id);
+      await this.profile(s.ranked.profiles[c]).release(s.id);
+      s.ranked.delivered[c] = true; await this.save();
+    }
+    await this.persistAndBroadcast();
+  }
+  private enqueueValue<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.messages.then(work); this.messages = result.then(() => {}, () => {}); return result;
+  }
+
   /** Internal RPC: no profile identifier is exposed through public room info. */
   profileConnected(secret: string): boolean {
     const s = this.s;
@@ -136,6 +178,7 @@ export class RoomDO extends DurableObject<Env> {
     if (!s) return { exists: false };
     return {
       exists: true,
+      ...(s.ranked ? { ranked: true, cancelled: s.ranked.cancelled } : {}),
       id: s.id,
       hasPassword: !!s.passHash,
       seatsTaken: s.seats.filter(Boolean).length,
@@ -221,10 +264,16 @@ export class RoomDO extends DurableObject<Env> {
       this.send(ws, { t: 'welcome', you: current, token: s.seats[current]!.token });
       return this.persistAndBroadcast(ws);
     }
+    if (s.ranked && !s.match && Date.now() >= s.ranked.joinBy && !s.ranked.cancelled) await this.abortRanked();
+    const proposedProfile = (ws.deserializeAttachment() as Attachment).profile;
+    if (s.ranked && (s.ranked.cancelled || !proposedProfile || !s.ranked.profiles.includes(proposedProfile))) {
+      return ws.close(4403, s.ranked.cancelled ? 'match_cancelled' : 'not_invited');
+    }
     const name = sanitizeName(msg.name);
     let seat: Color | null = null;
+    if (s.ranked) seat = s.ranked.profiles.indexOf(proposedProfile!) as Color;
     // Reconnect by token.
-    if (typeof msg.token === 'string') {
+    if (!s.ranked && typeof msg.token === 'string') {
       for (const c of [0, 1] as Color[]) {
         const st = s.seats[c];
         if (st && safeEqual(st.token, msg.token)) seat = c;
@@ -274,7 +323,7 @@ export class RoomDO extends DurableObject<Env> {
     s.lastActivity = Date.now();
     this.send(ws, { t: 'welcome', you: seat, token: s.seats[seat]!.token });
 
-    if (!s.match && s.seats[0] && s.seats[1]) {
+    if (!s.match && s.seats[0] && s.seats[1] && (!s.ranked || (s.ranked.ready && s.seats.every(st => st?.disconnectedAt === null)))) {
       await this.startMatch();
       if (s.settings.isPublic) await this.lobby().remove(s.id);
     } else if (this.status() === 'waiting' && s.settings.isPublic && seat === 0) {
@@ -331,6 +380,7 @@ export class RoomDO extends DurableObject<Env> {
         return this.broadcast({ t: 'emoji', from: seat, e: msg.e });
       }
       case 'rematch': {
+        if (s.ranked) return this.send(ws, { t: 'error', code: 'ranked_search_again' });
         if (!s.match || s.match.phase !== 'matchover') return this.send(ws, { t: 'error', code: 'not_over' });
         s.rematch[seat] = true;
         if (s.rematch[0] && s.rematch[1]) await this.startMatch();
@@ -355,7 +405,7 @@ export class RoomDO extends DurableObject<Env> {
       case 'take':
       case 'drop':
       case 'resign':
-        return this.act(ws, { type: msg.t, player: seat });
+        return this.act(ws, { type: s.ranked && msg.t === 'resign' ? 'timeout' : msg.t, player: seat });
       default:
         return this.send(ws, { t: 'error', code: 'unknown' });
     }
@@ -439,18 +489,35 @@ export class RoomDO extends DurableObject<Env> {
     const d = this.deadline();
     if (d !== null) times.push(d);
     if (s.nextGameAt !== null) times.push(s.nextGameAt);
-    if (s.progressOutbox?.length) times.push(Date.now() + 10000);
+    if (s.progressOutbox?.length || ((s.ranked?.results || s.ranked?.cancelled) && s.ranked.delivered.some(done => !done))) times.push(Date.now() + 10000);
+    if (s.ranked && !s.match && !s.ranked.cancelled) times.push(s.ranked.joinBy);
+    if (s.ranked && s.match && s.match.phase !== 'matchover') for (const st of s.seats) {
+      if (st?.disconnectedAt != null) times.push(st.disconnectedAt + CLAIM_AFTER_MS);
+    }
     await this.ctx.storage.setAlarm(Math.min(...times));
   }
 
   override async alarm(): Promise<void> {
     if (!this.s) return;
+    await this.ctx.storage.setAlarm(Date.now() + 10000);
     await this.enqueue(() => this.onAlarmWork(Date.now()));
   }
 
   private async onAlarmWork(now: number): Promise<void> {
     const s = this.s!;
-    if (now >= s.lastActivity + IDLE_MS && !s.progressOutbox?.length) {
+    if (s.ranked?.cancelled && s.ranked.delivered.some(done => !done)) { await this.abortRanked(); return; }
+    if (s.ranked && !s.match && !s.ranked.cancelled && now >= s.ranked.joinBy) { await this.abortRanked(); return; }
+    if (s.ranked && s.match && s.match.phase !== 'matchover') {
+      const disconnected = ([0,1] as Color[]).filter(c => s.seats[c]?.disconnectedAt != null).sort((a,b) => s.seats[a]!.disconnectedAt! - s.seats[b]!.disconnectedAt!);
+      const loser = disconnected[0];
+      if (loser !== undefined && now - s.seats[loser]!.disconnectedAt! >= CLAIM_AFTER_MS) {
+        // A party intermission is advanced before forfeiting the whole match.
+        if (s.match.phase === 'gameover') s.match = applyAction(s.match, { type: 'next', player: 0 }, cryptoRng);
+        s.match = applyAction(s.match, { type: 'timeout', player: loser }, cryptoRng);
+        this.syncClock(now); await this.persistAndBroadcast(); return;
+      }
+    }
+    if (now >= s.lastActivity + IDLE_MS && !s.progressOutbox?.length && !(s.ranked?.results && s.ranked.delivered.some(done => !done))) {
       const anyoneHere = this.ctx.getWebSockets().some((w) => (w.deserializeAttachment() as Attachment)?.seat !== null);
       if (!anyoneHere) return this.destroy();
       s.lastActivity = now; // players are connected and thinking — keep the room alive
@@ -475,7 +542,8 @@ export class RoomDO extends DurableObject<Env> {
       changed = true;
     }
     if (changed) await this.persistAndBroadcast();
-    else { await this.flushProgress(); await this.scheduleAlarm(); }
+    else if (s.progressOutbox?.length || (s.ranked?.results && s.ranked.delivered.some(done => !done))) await this.persistAndBroadcast();
+    else await this.scheduleAlarm();
   }
 
   /** Move timer expired: play for the absent player (roll + reasonable move, or answer the cube). */
@@ -509,9 +577,9 @@ export class RoomDO extends DurableObject<Env> {
     const s = this.s!;
     const seat = (c: Color) => {
       const st = s.seats[c];
-      return st ? { cosmetics: st.cosmetics, name: st.name, connected: st.disconnectedAt === null, disconnectedAt: st.disconnectedAt } : null;
+      return st ? { rating: s.ranked?.ratings[c], cosmetics: st.cosmetics, name: st.name, connected: st.disconnectedAt === null, disconnectedAt: st.disconnectedAt } : null;
     };
-    return { progressEligible: !!s.progressAllowed?.every(Boolean), progressEvent: s.progressRecorded, id: s.id, settings: s.settings, hasPassword: !!s.passHash, players: [seat(0), seat(1)], status: this.status(), rematch: s.rematch };
+    return { ranked: s.ranked ? { ratings: s.ranked.ratings, changes: s.ranked.results ? s.ranked.results.map(e => eloChange(e.own, e.opponent, e.won)) as [number,number] : undefined, settled: s.ranked.delivered.every(Boolean), cancelled: s.ranked.cancelled, joinBy: s.ranked.joinBy } : undefined, progressEligible: !!s.progressAllowed?.every(Boolean), progressEvent: s.progressRecorded, id: s.id, settings: s.settings, hasPassword: !!s.passHash, players: [seat(0), seat(1)], status: this.status(), rematch: s.rematch };
   }
 
   private clocks(): Clocks {
@@ -525,6 +593,10 @@ export class RoomDO extends DurableObject<Env> {
 
   private async persistAndBroadcast(withChatFor?: WebSocket): Promise<void> {
     this.queueProgress();
+    const ranked = this.s?.ranked, match = this.s?.match;
+    if (ranked && match?.phase === 'matchover' && !ranked.results) {
+      ranked.results = ([0,1] as const).map(c => ({ room: this.s!.id, variant: this.s!.settings.variant, own: ranked.ratings[c], opponent: ranked.ratings[other(c)], won: match.matchWinner === c, at: Date.now() })) as [RatingEvent,RatingEvent];
+    }
     await this.save();
     await this.flushProgress();
     await this.scheduleAlarm();
@@ -572,6 +644,15 @@ export class RoomDO extends DurableObject<Env> {
         s.progressOutbox = s.progressOutbox!.filter(x => x !== item);
         await this.save();
       } catch { break; } // Persisted outbox is retried by the room alarm.
+    }
+    if (s.ranked?.results) {
+      for (const c of [0,1] as const) {
+        if (s.ranked.delivered[c]) continue;
+        try {
+          await this.profile(s.ranked.profiles[c]).rate(s.ranked.results[c]);
+          s.ranked.delivered[c] = true; await this.save();
+        } catch { break; }
+      }
     }
     if (s.match?.phase === 'matchover') {
       for (const st of s.seats) if (st?.profile) await this.profile(st.profile).release(s.id).catch(() => {});

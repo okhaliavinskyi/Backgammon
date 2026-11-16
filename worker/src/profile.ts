@@ -1,3 +1,4 @@
+import { initialRatings, updatedRating, type RankedTicket, type RatingEvent } from '@nardy/core';
 import { DurableObject } from 'cloudflare:workers';
 import { COSMETICS, ALL_COSMETICS, levelForXp, newProfile, type ProgressProfile, type ProgressEvent, type CosmeticKind } from '@nardy/core';
 import { exportProfileRecords } from './profile-export';
@@ -20,7 +21,7 @@ export class ProfileDO extends DurableObject<Env> {
   }
   async init(secret: string): Promise<ProgressProfile> {
     const profile = this.ctx.storage.transactionSync(() => {
-      const p = this.read<ProgressProfile>('profile') ?? newProfile();
+      const p = this.getProfile() ?? newProfile();
       this.write('identity', secret);
       this.write('profile', p); return p;
     });
@@ -48,7 +49,51 @@ export class ProfileDO extends DurableObject<Env> {
     const records = exportProfileRecords(rows);
     return { version: 1, profile: this.getProfile(), lastUsed: this.read<number>('lastUsed') ?? null, records };
   }
-  getProfile(): ProgressProfile | null { return this.read<ProgressProfile>('profile') ?? null; }
+  getProfile(): ProgressProfile | null {
+    const p = this.read<ProgressProfile>('profile');
+    if (!p) return null;
+    p.ratings ??= initialRatings(); return p;
+  }
+  rankedTicket(): RankedTicket | null {
+    const t = this.read<RankedTicket>('ranked');
+    if (!t || (!t.room && t.expires <= Date.now())) return null;
+    return t;
+  }
+  reserveRanked(key: string): RankedTicket | null {
+    return this.ctx.storage.transactionSync(() => {
+      if (!this.getProfile()) return null;
+      const t = this.rankedTicket();
+      if (t && (t.key !== key || t.room)) return t;
+      const next = { key, room: null, expires: Date.now() + 45000 };
+      this.write('ranked', next); return next;
+    });
+  }
+  assignRanked(key: string, room: string): boolean {
+    return this.ctx.storage.transactionSync(() => {
+      const t = this.rankedTicket();
+      if (!t || t.key !== key || (t.room && t.room !== room)) return false;
+      this.write('ranked', { key, room, expires: 0 }); return true;
+    });
+  }
+  releaseRanked(key: string): void {
+    const t = this.rankedTicket();
+    if (t && (t.room === key || (!t.room && t.key === key))) this.ctx.storage.sql.exec('DELETE FROM data WHERE id = ?', 'ranked');
+  }
+  rate(event: RatingEvent): boolean {
+    return this.ctx.storage.transactionSync(() => {
+      const p = this.getProfile(); if (!p) return true; // Never recreate erased profiles.
+      if (this.read('rating:' + event.room)) return true;
+      const ticket = this.rankedTicket();
+      if (ticket?.room !== event.room) return true; // Deleted/recreated or cancelled identity.
+      const current = p.ratings[event.variant];
+      if (current.elo !== event.own.elo || current.matches !== event.own.matches) throw new Error('rating_snapshot_mismatch');
+      p.ratings[event.variant] = updatedRating(event.own, event.opponent, event.won);
+      this.write('profile', p);
+      this.write('rating:' + event.room, { ...event, delta: p.ratings[event.variant].elo - current.elo, version: 1 });
+      this.releaseRanked(event.room); return true;
+    });
+  }
+
   async acquire(room: string): Promise<boolean> {
     const previous = this.read<{ room: string; at: number }>('active');
     if (previous && previous.room !== room && Date.now() - previous.at < 35 * 60_000) {

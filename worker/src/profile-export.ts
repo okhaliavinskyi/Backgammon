@@ -7,7 +7,7 @@ export function exportProfileRecords(rows: { id: string; value: string }[]) {
   };
   return rows.flatMap(row => {
     const [category, ...parts] = row.id.split(':');
-    if (!['pair', 'daily', 'event', 'bonus', 'gift'].includes(category)) return [];
+    if (!['pair', 'daily', 'event', 'bonus', 'gift', 'rating'].includes(category)) return [];
     const reference = category === 'pair' ? `${label(parts[0])}:${parts[1]}`
       : category === 'daily' ? `${parts[0]}:${label(parts[1])}` : parts.join(':');
     return [{ category, reference, value: JSON.parse(row.value) as unknown }];

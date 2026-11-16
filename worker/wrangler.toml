@@ -41,3 +41,11 @@ class_name = "ProfileDO"
 [[migrations]]
 tag = "v2-profiles"
 new_sqlite_classes = ["ProfileDO"]
+
+[[durable_objects.bindings]]
+name = "MATCHMAKING"
+class_name = "MatchmakingDO"
+
+[[migrations]]
+tag = "v3-ranked"
+new_sqlite_classes = ["MatchmakingDO"]

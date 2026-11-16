@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ALL_COSMETICS, COSMETICS, levelForXp, xpForLevel, initialBoard, type Cosmetic } from '@nardy/core';
+import { ALL_COSMETICS, COSMETICS, ratingLabel, rankFor, levelForXp, xpForLevel, initialBoard, type Cosmetic } from '@nardy/core';
 import { useSettings, type Theme } from '../lib/settings';
 import { loadProgress, updateProgress, useProgress } from '../lib/progress';
 import { PageHead, type Nav } from './Menus';
@@ -45,6 +45,7 @@ export function ProgressScreen({ nav }: { nav: Nav }) {
         <p>{p.xp - xpForLevel(level)} / {xpForLevel(level + 1) - xpForLevel(level)} XP</p>
         <label><input type="checkbox" checked={hidden} onChange={e => useSettings.getState().set({ hideProgress: e.target.checked })} /> {ru ? 'Скрывать прогресс в игре' : 'Hide progress during games'}</label>
       </section>
+      <section className="card"><h3>{ru ? 'Рейтинг' : 'Ratings'}</h3>{(['long','short'] as const).map(v => <p key={v}><b>{v === 'long' ? (ru ? 'Длинные' : 'Long') : (ru ? 'Короткие' : 'Short')}</b>: {ratingLabel(p.ratings[v], ru)} · {p.ratings[v].wins} / {p.ratings[v].losses}{p.ratings[v].best !== null && <small> · {ru ? 'Лучший' : 'Best'}: {rankFor(p.ratings[v].best!)[ru ? 'ru' : 'en']}</small>}</p>)}<button className="btn" onClick={() => nav('/ranked')}>{ru ? 'Рейтинговая игра' : 'Ranked game'}</button></section>
       <section className="card"><h3>{ru ? 'Статистика онлайн-матчей' : 'Online match statistics'}</h3>
         {(['long', 'short'] as const).map(v => { const s = p.stats[v]; return <p key={v}><b>{v === 'long' ? (ru ? 'Длинные' : 'Long') : (ru ? 'Короткие' : 'Short')}</b>: {s.matches ? `${s.wins} ${ru ? 'побед' : 'wins'} · ${s.losses} ${ru ? 'поражений' : 'losses'} · ${Math.round(s.wins / s.matches * 100)}%` : (ru ? 'Пока нет матчей' : 'No matches yet')} · {s.games} {ru ? 'партий' : 'games'}</p>; })}
         <h3>{ru ? 'Значки' : 'Badges'}</h3><p>{p.badges.length ? p.badges.map(id => badgeNames[id]?.[ru ? 0 : 1]).join(' · ') : (ru ? 'Первый значок — за первую победу в зачётной партии.' : 'Win a qualifying game for your first badge.')}</p>
