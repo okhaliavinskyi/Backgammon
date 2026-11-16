@@ -10,7 +10,7 @@
   "scripts": {
     "typecheck": "npm run typecheck -ws --if-present && npm run typecheck:portal",
     "test": "npm run test -w @nardy/core",
-    "build": "npm run build -w @nardy/web",
+    "build": "npm run build -w @nardy/web && npm run build:mounted -w @nardy/web",
     "dev:web": "npm run dev -w @nardy/web",
     "dev:worker": "npm run dev -w @nardy/worker",
     "deploy": "npm run build && npm run deploy -w @nardy/worker",
