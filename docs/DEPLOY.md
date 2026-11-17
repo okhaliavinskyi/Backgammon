@@ -49,10 +49,15 @@ node e2e/online.e2e.cjs                                    # браузерны�
 
 ## OnlineBoard mounted release
 
-Production now uses the existing `onlineboard` catalog Worker at the root and
-`nardy` for game APIs/Durable Objects. The game client lives at `/backgammon/`.
-The main deploy workflow publishes nardy first, then builds/deploys the mounted
-client with the existing portal public assets. Do not publish a standalone build
-as the mounted client. The catalog HTML/CSS/mark are independent public files.
+Production uses the `onlineboard` catalog Worker from the separate
+[GamePortal repository](https://github.com/okhaliavinskyi/GamePortal) at the root.
+It forwards `/backgammon/*` unchanged through its NARDY service binding. This
+repository builds both standalone and mounted clients and deploys only `nardy`,
+which owns game assets, APIs and Durable Objects. The GamePortal workflow is
+manual; deploy nardy before the portal when changing their shared contract.
+
+The old `apps/portal` source is retained temporarily for migration checks, but its
+Wrangler configuration and deployment steps were removed in PR #2. Do not
+recreate them or publish the old portal: that would overwrite GamePortal.
 Email settings and the origin/path allowlists live in worker/wrangler.toml.
 See docs/EMAIL-ACCOUNTS.md for guest-progress continuity and local auth checks.

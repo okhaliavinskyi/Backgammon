@@ -1,3 +1,4 @@
+import { DiceHistory } from '../components/DiceHistory';
 import { FullscreenButton } from '../components/FullscreenButton';
 import { updateProgress, useProgress } from '../lib/progress';
 import { LegalLinks, PrivacyNotice } from './Legal';
@@ -138,6 +139,7 @@ export function Home({ nav }: { nav: Nav }) {
           <Icon name="gear" />
         </button>
       </header>
+      <DiceHistory />
       {saved && (
         <button className="resume-card" onClick={() => nav('/play?resume=1')}>
           <span className="resume-play" aria-hidden>

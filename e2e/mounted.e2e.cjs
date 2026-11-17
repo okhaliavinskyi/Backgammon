@@ -26,7 +26,7 @@ const expected = (m) => {
     t.includes('vibrate') ||
     t.includes('The AudioContext was not allowed to start') ||
     u.endsWith('/favicon.ico') ||
-    (t.includes('401 (Unauthorized)') && (u === origin + '/backgammon/api/profile' || u === origin + '/api/profile'))
+    (/\b401\b/.test(t) && (u === origin + '/backgammon/api/profile' || u === origin + '/api/profile'))
   );
 };
 

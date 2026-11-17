@@ -39,7 +39,7 @@ function LocalGame({ query, nav }: { query: URLSearchParams; nav: (p: string) =>
     let ctrl: LocalController;
     const saved = query.get('resume') ? loadSavedAiGame() : null;
     if (saved) {
-      ctrl = new LocalController({ mode: 'ai', settings: saved.match.settings, level: saved.level, names: saved.names, resume: saved.match });
+      ctrl = new LocalController({ mode: 'ai', settings: saved.match.settings, level: saved.level, names: saved.names, resume: saved.match, diceHistory: saved.diceHistory });
     } else {
       const mode = query.get('mode') === 'local' ? 'local' : 'ai';
       const variant = (query.get('variant') === 'short' ? 'short' : 'long') as Variant;

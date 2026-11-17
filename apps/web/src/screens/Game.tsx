@@ -1,3 +1,4 @@
+import { DiceHistory } from '../components/DiceHistory';
 import { FullscreenButton } from '../components/FullscreenButton';
 import { gamePath } from '../lib/paths';
 import { ALL_COSMETICS, ratingLabel } from '@nardy/core';
@@ -608,6 +609,7 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
               </p>
               {g.room?.ranked && m.phase === 'matchover' && <p className="ranked-result">{g.room.ranked.settled ? `${st.lang === 'ru' ? 'Рейтинг' : 'Rating'}: ${g.room.ranked.ratings[viewer].elo} → ${g.room.ranked.ratings[viewer].elo + (g.room.ranked.changes?.[viewer] ?? 0)} (${(g.room.ranked.changes?.[viewer] ?? 0) >= 0 ? '+' : ''}${g.room.ranked.changes?.[viewer] ?? 0})` : (st.lang === 'ru' ? 'Сохраняем рейтинг…' : 'Saving rating…')}</p>}
               {g.room?.ranked?.settled && progressProfile && m.phase === 'matchover' && <p>{ratingLabel(progressProfile.ratings[m.settings.variant], st.lang === 'ru')}</p>}
+              {g.mode === 'ai' && <DiceHistory />}
               {g.mode === 'online' && <GameProgress event={g.room?.progressEvent ?? ''} eligible={g.room?.progressEligible} />}
               {m.phase === 'gameover' && (
                 <>
@@ -692,9 +694,10 @@ export function GameScreen({ onExit }: { onExit: () => void }) {
 
       </div>
 
-      <div className="desk-more"><div className="emoji-bar">{EMOJIS.map((e) => <button key={e} onClick={() => ctrl.emoji(e)} aria-label={e}>{e}</button>)}</div></div>
+      <div className="desk-more">{g.mode === 'ai' && <DiceHistory />}<div className="emoji-bar">{EMOJIS.map((e) => <button key={e} onClick={() => ctrl.emoji(e)} aria-label={e}>{e}</button>)}</div></div>
       </>}
       {hud && moreOpen && <div className="phone-more hud-more">
+        {g.mode === 'ai' && <DiceHistory />}
         <button className="icon-btn" aria-label={T.back} onClick={() => setMoreOpen(false)}><Icon name="close" /></button>
         <FullscreenButton onToggle={() => setMoreOpen(false)} />
         {import.meta.env.BASE_URL !== '/' && (!g.room?.ranked || m.phase === 'matchover') && <a className="btn" href="/">{st.lang === 'ru' ? 'Все игры OnlineBoard' : 'All OnlineBoard games'}</a>}

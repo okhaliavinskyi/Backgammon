@@ -14,6 +14,7 @@ import {
   type Rng,
 } from '@nardy/core';
 import { Controller, actor, initialGameStore, pushEmoji, useGame } from './store';
+import { createDiceHistory, recordDice, saveDiceHistory, type DiceHistory } from '../lib/dice-history';
 import { diceMs, moveMs, useSettings } from '../lib/settings';
 
 const SAVE_KEY = 'nardy.aiGame';
@@ -33,9 +34,11 @@ export interface LocalOptions {
   level: AiLevel;
   names: [string, string];
   resume?: MatchState;
+  diceHistory?: DiceHistory;
 }
 
 interface Saved {
+  diceHistory?: DiceHistory;
   match: MatchState;
   level: AiLevel;
   names: [string, string];
@@ -62,9 +65,11 @@ export class LocalController implements Controller {
   private timers: ReturnType<typeof setTimeout>[] = [];
   private reqId = 0;
   private disposed = false;
+  private history: DiceHistory;
 
   constructor(private opts: LocalOptions) {
-    const match = opts.resume ?? newMatch(opts.settings, cryptoRng);
+    this.history = opts.diceHistory ?? createDiceHistory(!!opts.resume);
+    const match = opts.resume ?? this.record(rng => newMatch(opts.settings, rng), null);
     useGame.setState({
       ...initialGameStore,
       mode: opts.mode,
@@ -96,7 +101,7 @@ export class LocalController implements Controller {
   private dispatch(action: Action): void {
     if (this.disposed) return;
     try {
-      const next = applyAction(this.m, action, cryptoRng);
+      const next = this.record(rng => applyAction(this.m, action, rng), action.type === 'roll' ? action.player : null);
       useGame.setState({ match: next, error: null });
       this.afterChange(next);
     } catch (e) {
@@ -105,14 +110,19 @@ export class LocalController implements Controller {
     }
   }
 
+  private record(operation: (rng: Rng) => MatchState, player: Color | null): MatchState {
+    return this.opts.mode === 'ai' ? recordDice(operation, cryptoRng, this.history, player) : operation(cryptoRng);
+  }
+
   private later(fn: () => void, ms: number): void {
     this.timers.push(setTimeout(fn, ms));
   }
 
   private afterChange(m: MatchState): void {
     if (this.opts.mode === 'ai') {
+      saveDiceHistory(this.history);
       if (m.phase === 'matchover') clearSavedAiGame();
-      else localStorage.setItem(SAVE_KEY, JSON.stringify({ match: m, level: this.opts.level, names: this.opts.names } satisfies Saved));
+      else localStorage.setItem(SAVE_KEY, JSON.stringify({ match: m, diceHistory: this.history, level: this.opts.level, names: this.opts.names } satisfies Saved));
     }
     if (m.phase === 'gameover') {
       const at = Date.now() + NEXT_DELAY;
@@ -193,7 +203,8 @@ export class LocalController implements Controller {
   }
   rematch() {
     if (this.m.phase !== 'matchover') return;
-    const match = newMatch(this.opts.settings, cryptoRng);
+    this.history = createDiceHistory();
+    const match = this.record(rng => newMatch(this.opts.settings, rng), null);
     useGame.setState({ match });
     this.afterChange(match);
   }
