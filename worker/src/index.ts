@@ -1,3 +1,4 @@
+import { logAiDice } from './ai-dice';
 import { AccountDO } from './account';
 import { handleAuth } from './auth';
 import { resolveProfile, sessionCookie, accountStub, SESSION_COOKIE, cookieHeader, sha256 } from './auth-util';
@@ -57,6 +58,12 @@ export default {
     const origin = request.headers.get('Origin');
     if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
     const key = request.headers.get('CF-Connecting-IP') ?? 'local';
+
+    if (path === '/api/ai/dice') {
+      if (request.method !== 'POST') return json({ error: 'method' }, 405);
+      if (!(await env.CONNECT_LIMITER.limit({ key: 'ai-dice:' + key })).success) return json({ error: 'rate_limited' }, 429);
+      return logAiDice(request);
+    }
 
     if(path.startsWith('/api/auth/'))return handleAuth(request,env);
 

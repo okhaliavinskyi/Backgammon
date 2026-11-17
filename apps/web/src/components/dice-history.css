@@ -1,0 +1,11 @@
+.dice-history-layer { position: fixed; inset: 0; margin: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; border: 0; box-sizing: border-box; z-index: 500; background: #000b; display: grid; place-items: center; padding: 12px; text-align: left; }
+.dice-history-panel { width: min(100%, 640px); max-height: 90dvh; overflow-y: auto; background: var(--bg, #202329); color: var(--text, #eee); border: 1px solid #8886; border-radius: 16px; padding: 16px; box-shadow: 0 12px 48px #0008; }
+.dice-history-panel header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dice-history-panel h2 { font-size: 1.2rem; margin: 0; }
+.dice-history-panel label { display: block; margin: 12px 0; }
+.dice-history-panel select { max-width: 100%; padding: 6px; }
+.dice-history-panel table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.dice-history-panel th, .dice-history-panel td { padding: 7px 4px; border-bottom: 1px solid #8884; text-align: left; }
+.dice-history-panel p, .dice-history-panel li { font-size: .85rem; line-height: 1.5; }
+.dice-history-panel summary { cursor: pointer; padding: 10px 0; }
+.dice-history-panel ol { padding-left: 24px; }

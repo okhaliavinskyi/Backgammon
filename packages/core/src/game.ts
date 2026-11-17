@@ -1,3 +1,4 @@
+import { balancedRoll, recordDiceTurnResult, type DicePair } from './balanced-dice';
 import { Board, Color, Variant, initialBoard, other, checkerTotal, HOME_START } from './board';
 import { Step, TurnState, expandDice, headLimitFor, legalNextSteps, validateTurn } from './moves';
 
@@ -38,6 +39,12 @@ export interface MatchState {
   headMoved: number;
   headLimit: number;
   turnsTaken: [number, number];
+  /** Last two accepted rolls per seat; optional for pre-policy saves. */
+  recentDice?: [DicePair[], DicePair[]];
+  /** Last five own turn outcomes; true means some dice could not be used. */
+  blockedTurns?: [boolean[], boolean[]];
+  /** Own turns remaining without catch-up assistance. */
+  catchupCooldown?: [number, number];
   cube: { value: number; owner: Color | null };
   cubeOfferedBy: Color | null;
   /** Opening roll (one die each) that decided who starts this game. */
@@ -87,6 +94,9 @@ function startGame(m: MatchState, rng: Rng): void {
   const { variant } = m.settings;
   m.board = initialBoard(variant);
   m.turnsTaken = [0, 0];
+  m.recentDice = [[], []];
+  m.blockedTurns = [[], []];
+  m.catchupCooldown = [0, 0];
   m.cube = { value: 1, owner: null };
   m.cubeOfferedBy = null;
   m.result = null;
@@ -146,12 +156,15 @@ export function turnState(m: MatchState): TurnState {
 function beginMove(m: MatchState, d1: number, d2: number): void {
   const dice = expandDice(d1, d2);
   m.dice = [d1, d2];
+  m.recentDice ??= [[], []];
+  m.recentDice[m.turn] = [...m.recentDice[m.turn], [d1, d2] as DicePair].slice(-2);
   m.remaining = dice;
   m.headMoved = 0;
   m.headLimit = headLimitFor(m.settings.variant, dice, m.turnsTaken[m.turn] === 0);
   m.turnsTaken[m.turn]++;
   m.phase = 'move';
   if (legalNextSteps(turnState(m)).length === 0) {
+    recordDiceTurnResult(m, m.turn, true);
     m.event = { type: 'nomoves', player: m.turn, dice: [d1, d2] };
     passTurn(m);
   }
@@ -211,7 +224,7 @@ export function applyAction(state: MatchState, action: Action, rng: Rng = mathRn
   switch (action.type) {
     case 'roll': {
       if (m.phase !== 'roll' || m.turn !== p) throw new GameError('not_your_roll');
-      const [d1, d2] = action.dice ?? [rng(), rng()];
+      const [d1, d2] = action.dice ?? balancedRoll(m, rng);
       m.event = { type: 'rolled', player: p, dice: [d1, d2] };
       beginMove(m, d1, d2);
       break;
@@ -221,6 +234,7 @@ export function applyAction(state: MatchState, action: Action, rng: Rng = mathRn
       const res = validateTurn(turnState(m), action.steps);
       if (!res.ok) throw new GameError(res.error);
       m.board = res.end.board;
+      recordDiceTurnResult(m, p, res.end.remaining.length > 0 && m.board.off[p] < 15);
       m.event = { type: 'moved', player: p, steps: res.steps };
       if (m.board.off[p] === 15) {
         settle(m, p, winMultiplier(m.board, m.settings.variant, p), m.cube.value, 'normal');
